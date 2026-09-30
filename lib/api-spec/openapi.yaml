@@ -3,13 +3,19 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Submission, queue, and host controls for Gathering of the Fallen LIVE
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: sessions
+    description: Upcoming live sessions and public queue previews
+  - name: submissions
+    description: Artist track submissions
+  - name: admin
+    description: Authenticated queue review and host controls
 paths:
   /healthz:
     get:
@@ -24,7 +30,147 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /sessions:
+    get:
+      operationId: listSessions
+      tags: [sessions]
+      summary: List upcoming sessions
+      responses:
+        "200":
+          description: Upcoming sessions and availability
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SessionSummary"
+  /sessions/{sessionId}/queue-preview:
+    get:
+      operationId: getSessionQueuePreview
+      tags: [sessions]
+      summary: Preview the public portion of a session queue
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Approved tracks in the upcoming queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QueuePreviewItem"
+        "404":
+          description: Session not found
+  /submissions:
+    post:
+      operationId: createSubmission
+      tags: [submissions]
+      summary: Submit a track to a live session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmissionInput"
+      responses:
+        "201":
+          description: Submission added to the session queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmissionReceipt"
+        "400":
+          description: Invalid submission or session closed/full
+  /admin/sessions:
+    get:
+      operationId: listAdminSessions
+      tags: [admin]
+      summary: List sessions with queue counts
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: Session queue summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminSessionSummary"
+        "401":
+          description: Sign in required
+  /admin/sessions/{sessionId}/queue:
+    get:
+      operationId: getAdminSessionQueue
+      tags: [admin]
+      summary: Read a session's complete queue in assigned order
+      security:
+        - clerkSession: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Full queue in queue number order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminQueueSubmission"
+        "401":
+          description: Sign in required
+        "404":
+          description: Session not found
+  /admin/submissions/{submissionId}:
+    patch:
+      operationId: updateSubmissionStatus
+      tags: [admin]
+      summary: Review or update a queue item's status
+      security:
+        - clerkSession: []
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmissionStatusInput"
+      responses:
+        "200":
+          description: Updated queue item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminQueueSubmission"
+        "400":
+          description: Invalid status transition
+        "401":
+          description: Sign in required
+        "404":
+          description: Submission not found
 components:
+  securitySchemes:
+    clerkSession:
+      type: apiKey
+      in: cookie
+      name: __session
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +179,85 @@ components:
           type: string
       required:
         - status
+    SessionSummary:
+      type: object
+      required: [id, sessionType, startsAt, capacity, registered, available, isOpen]
+      properties:
+        id: { type: string, format: uuid }
+        sessionType:
+          type: string
+          enum: [artist_spotlight, genre_showcase, weekend_takeover]
+        startsAt: { type: string, format: date-time }
+        capacity: { type: integer }
+        registered: { type: integer }
+        available: { type: integer }
+        isOpen: { type: boolean }
+    QueuePreviewItem:
+      type: object
+      required: [queueNumber, artistName, songTitle, genre]
+      properties:
+        queueNumber: { type: integer }
+        artistName: { type: string }
+        songTitle: { type: string }
+        genre: { type: string }
+    SubmissionInput:
+      type: object
+      required:
+        [sessionId, artistName, songTitle, intro, genre, country, trackUrl, rightsAccepted]
+      properties:
+        sessionId: { type: string, format: uuid }
+        artistName: { type: string, minLength: 1, maxLength: 100 }
+        songTitle: { type: string, minLength: 1, maxLength: 120 }
+        intro: { type: string, minLength: 1, maxLength: 300 }
+        genre: { type: string, minLength: 1, maxLength: 60 }
+        country: { type: string, minLength: 1, maxLength: 80 }
+        socialUrl: { type: ["string", "null"], maxLength: 500 }
+        trackUrl: { type: string, format: uri, maxLength: 1000 }
+        rightsAccepted: { type: boolean, const: true }
+    SubmissionReceipt:
+      type: object
+      required: [id, sessionId, queueNumber, status, artistName, songTitle, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        sessionId: { type: string, format: uuid }
+        queueNumber: { type: integer }
+        status: { type: string, enum: [pending] }
+        artistName: { type: string }
+        songTitle: { type: string }
+        createdAt: { type: string, format: date-time }
+    AdminSessionSummary:
+      allOf:
+        - $ref: "#/components/schemas/SessionSummary"
+        - type: object
+          required: [pending, approved, played]
+          properties:
+            pending: { type: integer }
+            approved: { type: integer }
+            played: { type: integer }
+    AdminQueueSubmission:
+      type: object
+      required:
+        [id, sessionId, queueNumber, artistName, songTitle, intro, genre, country, socialUrl, trackUrl, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        sessionId: { type: string, format: uuid }
+        queueNumber: { type: integer }
+        artistName: { type: string }
+        songTitle: { type: string }
+        intro: { type: string }
+        genre: { type: string }
+        country: { type: string }
+        socialUrl: { type: ["string", "null"] }
+        trackUrl: { type: string }
+        status:
+          type: string
+          enum: [pending, approved, rejected, played, skipped]
+        createdAt: { type: string, format: date-time }
+    SubmissionStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected, played, skipped]
 

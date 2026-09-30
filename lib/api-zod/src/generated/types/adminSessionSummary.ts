@@ -5,7 +5,10 @@
  * Submission, queue, and host controls for Gathering of the Fallen LIVE
  * OpenAPI spec version: 0.1.0
  */
+import type { SessionSummary } from './sessionSummary';
 
-export interface HealthStatus {
-  status: string;
-}
+export type AdminSessionSummary = SessionSummary & {
+  pending: number;
+  approved: number;
+  played: number;
+};

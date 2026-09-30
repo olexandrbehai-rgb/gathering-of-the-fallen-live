@@ -5,7 +5,8 @@
  * Submission, queue, and host controls for Gathering of the Fallen LIVE
  * OpenAPI spec version: 0.1.0
  */
+import type { SubmissionStatusInputStatus } from './submissionStatusInputStatus';
 
-export interface HealthStatus {
-  status: string;
+export interface SubmissionStatusInput {
+  status: SubmissionStatusInputStatus;
 }
