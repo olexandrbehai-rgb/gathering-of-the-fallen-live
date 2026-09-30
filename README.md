@@ -58,6 +58,12 @@ VITE_CLERK_PUBLISHABLE_KEY=pk_test_... pnpm run cloudflare:build
 
 The `cloudflare:dev` and `cloudflare:deploy` scripts use Wrangler 4.144.0 through `pnpm dlx`. The deploy script is provided for you to run when ready; no Cloudflare deployment is performed as part of preparing this repository.
 
+## Render
+
+The root [`render.yaml`](./render.yaml) defines one free Node web service. It builds the React site and Express API together, serves both from one origin, and uses `/api/healthz` for health checks. The free service can spin down while idle, so its first request after inactivity may be slow.
+
+Import the repository as a Render Blueprint to create or sync the service. If it is already linked to Render with automatic deploys enabled, a push to `main` will trigger the configured build. During Blueprint setup, provide `DATABASE_URL` for the existing PostgreSQL database and the three Clerk variables (`CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and `VITE_CLERK_PUBLISHABLE_KEY`) in Render's environment settings. The Blueprint does not provision, migrate, or alter the database, and it does not contain secret values.
+
 ## GitHub and deployment
 
 The public repository contains source code and required app assets. Conversation uploads and build prompts are intentionally excluded. Keep `.env`, `.dev.vars`, database URLs, Clerk secret keys, and Cloudflare API tokens out of Git.

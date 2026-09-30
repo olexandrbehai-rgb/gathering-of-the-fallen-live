@@ -1,4 +1,6 @@
 import pinoHttp from "pino-http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { configureDatabase } from "@workspace/db";
 import { createApp } from "./app";
 import { logger } from "./lib/logger";
@@ -12,11 +14,20 @@ if (!databaseUrl) {
 }
 configureDatabase(databaseUrl);
 
+const staticDir =
+  process.env.SERVE_WEB_DIST === "true"
+    ? path.resolve(
+        path.dirname(fileURLToPath(import.meta.url)),
+        "../../gathering-fallen-live/dist/public",
+      )
+    : undefined;
+
 const app = createApp({
   getClerkKeys: () => ({
     publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
     secretKey: process.env.CLERK_SECRET_KEY,
   }),
+  ...(staticDir ? { staticDir } : {}),
   clerkProxyMiddleware: clerkProxyMiddleware(),
   requestLogger: pinoHttp({
     logger,

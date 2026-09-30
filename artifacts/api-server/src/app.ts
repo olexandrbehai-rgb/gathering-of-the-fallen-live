@@ -16,6 +16,7 @@ export type AppOptions = {
   clerkProxyMiddleware?: RequestHandler;
   requestLogger?: RequestHandler;
   logRequests?: boolean;
+  staticDir?: string;
 };
 
 export function createApp(options: AppOptions): Express {
@@ -63,5 +64,24 @@ export function createApp(options: AppOptions): Express {
   );
 
   app.use("/api", router);
+
+  if (options.staticDir) {
+    app.use(express.static(options.staticDir));
+    app.use((req, res, next) => {
+      if (
+        (req.method !== "GET" && req.method !== "HEAD") ||
+        req.path === "/api" ||
+        req.path.startsWith("/api/")
+      ) {
+        next();
+        return;
+      }
+
+      res.sendFile(`${options.staticDir}/index.html`, (error) => {
+        if (error) next(error);
+      });
+    });
+  }
+
   return app;
 }
