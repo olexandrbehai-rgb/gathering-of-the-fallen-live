@@ -22,4 +22,4 @@ services:
       - key: CLERK_SECRET_KEY
         sync: false
       - key: VITE_CLERK_PUBLISHABLE_KEY
-        sync: false
+        sync: false # Prompt during Render Blueprint setup
