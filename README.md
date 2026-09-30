@@ -62,4 +62,4 @@ The `cloudflare:dev` and `cloudflare:deploy` scripts use Wrangler 4.144.0 throug
 
 The public repository contains source code and required app assets. Conversation uploads and build prompts are intentionally excluded. Keep `.env`, `.dev.vars`, database URLs, Clerk secret keys, and Cloudflare API tokens out of Git.
 
-The GitHub Actions workflow is manual-only (`workflow_dispatch`). Configure its required GitHub variables and Cloudflare secrets before using it. Pushing a commit does not automatically deploy the app.
+The manual Cloudflare deployment workflow is included as [`cloudflare-deploy.workflow.yml`](./cloudflare-deploy.workflow.yml). Once the repository has GitHub Actions workflow-write permission, place it at `.github/workflows/deploy-cloudflare.yml` and configure its GitHub variable and Cloudflare secrets. Pushing a commit does not automatically deploy the app. Until then, the `cloudflare:deploy` script is available for manual use from an authenticated environment.

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Gathering of the Fallen LIVE"
+description = "A multilingual music submission and live-session queue for Gathering of the Fallen. Artists submit tracks directly to an upcoming session; hosts review submissions and play the approved queue in order."
+version = "1.0.0"
+id = "artifacts/gathering-fallen-live"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20541
+
+[services.development]
+run = "pnpm --filter @workspace/gathering-fallen-live run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/gathering-fallen-live", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/gathering-fallen-live/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20541"
+BASE_PATH = "/"
