@@ -1,0 +1,118 @@
+import assert from "node:assert/strict";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import test from "node:test";
+
+const scriptPath = new URL("./check-render-deployment.sh", import.meta.url);
+const serviceUrl = "https://render.example.test";
+const expectedEndpoints = [
+  `${serviceUrl}/`,
+  `${serviceUrl}/api/healthz`,
+];
+
+function runSmokeCheck(mode) {
+  const tempDirectory = mkdtempSync(join(tmpdir(), "render-smoke-test-"));
+  const binDirectory = join(tempDirectory, "bin");
+  mkdirSync(binDirectory);
+  const curlLog = join(tempDirectory, "curl.log");
+  const sleepLog = join(tempDirectory, "sleep.log");
+  const curlPath = join(binDirectory, "curl");
+  const sleepPath = join(binDirectory, "sleep");
+
+  writeFileSync(
+    curlPath,
+    `#!/usr/bin/env bash
+set -euo pipefail
+url="\${!#}"
+printf '%s\\n' "$url" >> "$CURL_LOG"
+call_count=$(wc -l < "$CURL_LOG")
+if [[ "$CURL_MODE" == "exhausted" ]] || { [[ "$CURL_MODE" == "retry" ]] && [[ "$call_count" -eq 2 ]]; }; then
+  exit 22
+fi
+`,
+  );
+  writeFileSync(
+    sleepPath,
+    `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$SLEEP_LOG"
+`,
+  );
+  chmodSync(curlPath, 0o755);
+  chmodSync(sleepPath, 0o755);
+
+  const result = spawnSync("bash", [scriptPath.pathname], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${binDirectory}:${process.env.PATH}`,
+      CURL_LOG: curlLog,
+      SLEEP_LOG: sleepLog,
+      CURL_MODE: mode,
+      RENDER_SERVICE_URL: serviceUrl,
+    },
+    timeout: 30_000,
+  });
+
+  const readLines = (path) => {
+    try {
+      return readFileSync(path, "utf8").trim().split("\n").filter(Boolean);
+    } catch (error) {
+      if (error.code === "ENOENT") return [];
+      throw error;
+    }
+  };
+
+  return {
+    result,
+    requestedEndpoints: readLines(curlLog),
+    sleeps: readLines(sleepLog),
+  };
+}
+
+test("succeeds when the homepage and health endpoint are healthy", () => {
+  const { result, requestedEndpoints, sleeps } = runSmokeCheck("success");
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(requestedEndpoints, expectedEndpoints);
+  assert.deepEqual(sleeps, []);
+  assert.match(result.stdout, /responding successfully/);
+});
+
+test("retries both endpoints when either endpoint is not ready", () => {
+  const { result, requestedEndpoints, sleeps } = runSmokeCheck("retry");
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(requestedEndpoints, [...expectedEndpoints, ...expectedEndpoints]);
+  assert.deepEqual(sleeps, ["30"]);
+  assert.match(result.stdout, /health endpoint is not ready/);
+  assert.match(result.stdout, /Attempt 2\/30: health endpoint returned success/);
+});
+
+test("fails after exhausting retries and continues checking both endpoints", () => {
+  const { result, requestedEndpoints, sleeps } = runSmokeCheck("exhausted");
+  const attemptedEndpointPairs = Array.from(
+    { length: requestedEndpoints.length / expectedEndpoints.length },
+    (_, attempt) =>
+      requestedEndpoints.slice(
+        attempt * expectedEndpoints.length,
+        (attempt + 1) * expectedEndpoints.length,
+      ),
+  );
+
+  assert.equal(result.status, 1);
+  assert.equal(attemptedEndpointPairs.length, 30);
+  assert.deepEqual(
+    attemptedEndpointPairs,
+    Array.from({ length: 30 }, () => expectedEndpoints),
+  );
+  assert.equal(sleeps.length, 29);
+  assert.match(result.stdout, /did not both return success after 30 attempts/);
+});

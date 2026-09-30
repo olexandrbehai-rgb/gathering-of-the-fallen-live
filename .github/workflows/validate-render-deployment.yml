@@ -1,0 +1,56 @@
+name: Validate Render deployment check
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/check-render-deployment.yml
+      - .github/workflows/validate-render-deployment.yml
+      - .github/scripts/check-render-deployment.sh
+      - .github/scripts/check-render-deployment.test.mjs
+      - package.json
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/check-render-deployment.yml
+      - .github/workflows/validate-render-deployment.yml
+      - .github/scripts/check-render-deployment.sh
+      - .github/scripts/check-render-deployment.test.mjs
+      - package.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Lint workflow and test smoke check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Lint deployment workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          actionlint_version=1.7.7
+          curl --fail --location --silent --show-error \
+            "https://github.com/rhysd/actionlint/releases/download/v${actionlint_version}/actionlint_${actionlint_version}_linux_amd64.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" \
+            .github/workflows/check-render-deployment.yml \
+            .github/workflows/validate-render-deployment.yml
+
+      - name: Test Render smoke-check behavior
+        run: pnpm run test:render-deployment
