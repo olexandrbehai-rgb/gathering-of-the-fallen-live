@@ -66,6 +66,17 @@ Import the repository as a Render Blueprint to create or sync the service. If it
 
 The [`check-render-deployment.yml`](./.github/workflows/check-render-deployment.yml) workflow checks the homepage and `/api/healthz` after pushes to `main`, retrying while Render deploys. Set the non-secret GitHub Actions repository variable `RENDER_SERVICE_URL` to the service's public HTTPS base URL (without a trailing slash) under **Settings → Secrets and variables → Actions → Variables**. The workflow does not need database or Clerk secrets.
 
+## GitHub Releases
+
+Use stable version tags in `vMAJOR.MINOR.PATCH` format, such as `v1.2.3`. To release a commit, create and push an annotated tag:
+
+```sh
+git tag -a v1.2.3 -m "Release v1.2.3"
+git push origin v1.2.3
+```
+
+The [`create-release.yml`](./.github/workflows/create-release.yml) workflow checks that the tag follows this format, installs the locked dependencies, and runs `pnpm run typecheck` and `pnpm run build`. It publishes a GitHub Release with automatically generated notes only after both checks pass. The workflow needs the repository's Actions token to have `contents: write` permission.
+
 ## GitHub and deployment
 
 The public repository contains source code and required app assets. Conversation uploads and build prompts are intentionally excluded. Keep `.env`, `.dev.vars`, database URLs, Clerk secret keys, and Cloudflare API tokens out of Git.
