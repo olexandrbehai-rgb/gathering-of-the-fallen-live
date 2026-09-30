@@ -1,54 +1,67 @@
 import express, { type Express } from "express";
 import cors from "cors";
-import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import router from "./routes";
-import { logger } from "./lib/logger";
-import {
-  CLERK_PROXY_PATH,
-  clerkProxyMiddleware,
-  getClerkProxyHost,
-} from "./middlewares/clerkProxyMiddleware";
+import { CLERK_PROXY_PATH, getClerkProxyHost } from "./middlewares/clerkProxyShared";
+import type { Request, RequestHandler } from "express";
 
-const app: Express = express();
+type ClerkKeys = {
+  publishableKey?: string;
+  secretKey?: string;
+};
 
-app.use(
-  pinoHttp({
-    logger,
-    serializers: {
-      req(req) {
-        return {
-          id: req.id,
-          method: req.method,
-          url: req.url?.split("?")[0],
-        };
-      },
-      res(res) {
-        return {
-          statusCode: res.statusCode,
-        };
-      },
-    },
-  }),
-);
+export type AppOptions = {
+  getClerkKeys: () => ClerkKeys;
+  clerkProxyMiddleware?: RequestHandler;
+  requestLogger?: RequestHandler;
+  logRequests?: boolean;
+};
 
-// Clerk's frontend API proxy must see the raw request body.
-app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
+export function createApp(options: AppOptions): Express {
+  const app: Express = express();
 
-app.use(cors({ credentials: true, origin: true }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+  if (options.requestLogger) {
+    app.use(options.requestLogger);
+  } else if (options.logRequests !== false) {
+    app.use((req, res, next) => {
+      const startedAt = Date.now();
+      res.on("finish", () => {
+        console.log(
+          JSON.stringify({
+            method: req.method,
+            path: req.path,
+            statusCode: res.statusCode,
+            durationMs: Date.now() - startedAt,
+          }),
+        );
+      });
+      next();
+    });
+  }
 
-app.use(
-  clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
-  })),
-);
+  // Clerk's frontend API proxy must see the raw request body.
+  if (options.clerkProxyMiddleware) {
+    app.use(CLERK_PROXY_PATH, options.clerkProxyMiddleware);
+  }
 
-app.use("/api", router);
+  app.use(cors({ credentials: true, origin: true }));
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
-export default app;
+  app.use(
+    clerkMiddleware((_req: Request) => {
+      const keys = options.getClerkKeys();
+      return {
+        publishableKey: publishableKeyFromHost(
+          getClerkProxyHost(_req) ?? "",
+          keys.publishableKey,
+        ),
+        secretKey: keys.secretKey,
+      };
+    }),
+  );
+
+  app.use("/api", router);
+  return app;
+}

@@ -19,12 +19,12 @@
  *   app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
  */
 
-import type { IncomingHttpHeaders } from 'http';
 import type { RequestHandler } from 'express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import { CLERK_PROXY_PATH, getClerkProxyHost } from './clerkProxyShared';
 
 const CLERK_FAPI = 'https://frontend-api.clerk.dev';
-export const CLERK_PROXY_PATH = '/api/__clerk';
+export { CLERK_PROXY_PATH, getClerkProxyHost } from './clerkProxyShared';
 
 /**
  * Returns the first effective public hostname for the given request,
@@ -43,15 +43,6 @@ export const CLERK_PROXY_PATH = '/api/__clerk';
  * hostname is canonical — otherwise multi-domain/custom-domain flows
  * break.
  */
-export function getClerkProxyHost(req: {
-  headers: IncomingHttpHeaders;
-}): string | undefined {
-  const forwarded = req.headers['x-forwarded-host'];
-  const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-  const firstHop = raw?.split(',')[0]?.trim();
-  return firstHop || req.headers.host?.trim() || undefined;
-}
-
 export function clerkProxyMiddleware(): RequestHandler {
   // Only run proxy in production — Clerk proxying doesn't work for dev instances
   if (process.env.NODE_ENV !== 'production') {

@@ -4,7 +4,10 @@
   "license": "MIT",
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "build": "pnpm run typecheck && PORT=${PORT:-20541} BASE_PATH=${BASE_PATH:-/} pnpm -r --if-present run build",
+    "cloudflare:build": "test -n \"$VITE_CLERK_PUBLISHABLE_KEY\" || { echo 'Set VITE_CLERK_PUBLISHABLE_KEY before building the Cloudflare app.' >&2; exit 1; }; PORT=20541 BASE_PATH=/ pnpm --filter @workspace/gathering-fallen-live run build",
+    "cloudflare:dev": "pnpm run cloudflare:build && pnpm dlx wrangler@4.144.0 dev --config artifacts/api-server/wrangler.jsonc",
+    "cloudflare:deploy": "pnpm run cloudflare:build && pnpm dlx wrangler@4.144.0 deploy --config artifacts/api-server/wrangler.jsonc",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },

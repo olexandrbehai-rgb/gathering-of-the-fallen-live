@@ -11,6 +11,16 @@ out-tsc
 # dependencies
 node_modules
 
+# Local environment and Cloudflare credentials
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.wrangler/
+.conversation/
+
 # IDEs and editors
 /.idea
 .project
@@ -47,3 +57,4 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+.agents/memory/

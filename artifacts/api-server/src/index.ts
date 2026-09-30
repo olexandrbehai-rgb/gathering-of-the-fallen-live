@@ -1,5 +1,41 @@
-import app from "./app";
+import pinoHttp from "pino-http";
+import { configureDatabase } from "@workspace/db";
+import { createApp } from "./app";
 import { logger } from "./lib/logger";
+import { clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error(
+    "DATABASE_URL must be set. Did you forget to provision a database?",
+  );
+}
+configureDatabase(databaseUrl);
+
+const app = createApp({
+  getClerkKeys: () => ({
+    publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+    secretKey: process.env.CLERK_SECRET_KEY,
+  }),
+  clerkProxyMiddleware: clerkProxyMiddleware(),
+  requestLogger: pinoHttp({
+    logger,
+    serializers: {
+      req(req) {
+        return {
+          id: req.id,
+          method: req.method,
+          url: req.url?.split("?")[0],
+        };
+      },
+      res(res) {
+        return {
+          statusCode: res.statusCode,
+        };
+      },
+    },
+  }),
+});
 
 const rawPort = process.env["PORT"];
 
