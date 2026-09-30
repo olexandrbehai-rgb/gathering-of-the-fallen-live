@@ -1,0 +1,70 @@
+name: Check Render deployment
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: Check the live service
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      RENDER_SERVICE_URL: ${{ vars.RENDER_SERVICE_URL }}
+    steps:
+      - name: Wait for the homepage and health endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${RENDER_SERVICE_URL:-}" ]]; then
+            echo "::error::Set the non-secret RENDER_SERVICE_URL repository variable to the Render service's public HTTPS base URL."
+            exit 1
+          fi
+
+          if [[ ! "$RENDER_SERVICE_URL" =~ ^https:// ]]; then
+            echo "::error::RENDER_SERVICE_URL must be an HTTPS base URL."
+            exit 1
+          fi
+
+          base_url="${RENDER_SERVICE_URL%/}"
+          endpoints=("$base_url/" "$base_url/api/healthz")
+          endpoint_names=("homepage" "health endpoint")
+          max_attempts=30
+
+          for attempt in $(seq 1 "$max_attempts"); do
+            all_healthy=true
+
+            for index in "${!endpoints[@]}"; do
+              if curl \
+                --fail \
+                --location \
+                --silent \
+                --show-error \
+                --max-time 15 \
+                --output /dev/null \
+                "${endpoints[$index]}"; then
+                echo "Attempt $attempt/$max_attempts: ${endpoint_names[$index]} returned success."
+              else
+                echo "Attempt $attempt/$max_attempts: ${endpoint_names[$index]} is not ready."
+                all_healthy=false
+              fi
+            done
+
+            if [[ "$all_healthy" == true ]]; then
+              echo "Render homepage and health endpoint are responding successfully."
+              exit 0
+            fi
+
+            if [[ "$attempt" -lt "$max_attempts" ]]; then
+              sleep 30
+            fi
+          done
+
+          echo "::error::Render homepage and health endpoint did not both return success after $max_attempts attempts."
+          exit 1

@@ -64,6 +64,8 @@ The root [`render.yaml`](./render.yaml) defines one free Node web service. It bu
 
 Import the repository as a Render Blueprint to create or sync the service. If it is already linked to Render with automatic deploys enabled, a push to `main` will trigger the configured build. During Blueprint setup, provide `DATABASE_URL` for the existing PostgreSQL database and the three Clerk variables (`CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and `VITE_CLERK_PUBLISHABLE_KEY`) in Render's environment settings. The Blueprint does not provision, migrate, or alter the database, and it does not contain secret values.
 
+The [`check-render-deployment.yml`](./.github/workflows/check-render-deployment.yml) workflow checks the homepage and `/api/healthz` after pushes to `main`, retrying while Render deploys. Set the non-secret GitHub Actions repository variable `RENDER_SERVICE_URL` to the service's public HTTPS base URL (without a trailing slash) under **Settings → Secrets and variables → Actions → Variables**. The workflow does not need database or Clerk secrets.
+
 ## GitHub and deployment
 
 The public repository contains source code and required app assets. Conversation uploads and build prompts are intentionally excluded. Keep `.env`, `.dev.vars`, database URLs, Clerk secret keys, and Cloudflare API tokens out of Git.
