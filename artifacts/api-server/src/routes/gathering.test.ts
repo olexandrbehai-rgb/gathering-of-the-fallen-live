@@ -9,6 +9,7 @@ import {
   type Session,
   type Submission,
 } from "@workspace/db";
+import { generateUpcomingSessionInstances } from "../lib/session-schedule";
 import { createGatheringRouter } from "./gathering";
 
 const sessionId = "00000000-0000-4000-8000-000000000001";
@@ -66,7 +67,14 @@ class FixtureQuery implements PromiseLike<unknown[]> {
     if (this.table === sessionsTable) {
       rows =
         fields.length > 0
-          ? this.database.sessions.map(({ id }) => ({ id }))
+          ? this.database.sessions.map((session) =>
+              Object.fromEntries(
+                fields.map((field) => [
+                  field,
+                  session[field as keyof Session],
+                ]),
+              ),
+            )
           : this.database.sessions;
     } else if (this.table === submissionsTable) {
       if (fields.includes("registered") && fields.includes("highestQueueNumber")) {
@@ -107,9 +115,15 @@ class FixtureQuery implements PromiseLike<unknown[]> {
 }
 
 class FixtureDatabase {
+  readonly sessionInsertions: Array<{
+    rows: Record<string, unknown>[];
+    conflictTarget: unknown;
+  }> = [];
+
   constructor(
     readonly sessions: Session[],
     readonly submissions: Submission[] = [],
+    private readonly persistSessionInserts = false,
   ) {}
 
   select(projection?: Record<string, unknown>): FixtureQuery {
@@ -124,7 +138,38 @@ class FixtureDatabase {
         values = input;
         return this;
       },
-      onConflictDoNothing: async () => [],
+      onConflictDoNothing: async (config?: { target?: unknown }) => {
+        if (table === sessionsTable) {
+          const rows = Array.isArray(values) ? values : [values];
+          database.sessionInsertions.push({
+            rows,
+            conflictTarget: config?.target,
+          });
+
+          if (database.persistSessionInserts) {
+            for (const row of rows) {
+              const startsAt = row.startsAt as Date;
+              if (
+                database.sessions.some(
+                  (session) =>
+                    session.startsAt.getTime() === startsAt.getTime(),
+                )
+              ) {
+                continue;
+              }
+              database.sessions.push({
+                id: `00000000-0000-4000-8000-${String(database.sessions.length + 100).padStart(12, "0")}`,
+                sessionType: row.sessionType as Session["sessionType"],
+                startsAt,
+                capacity: row.capacity as number,
+                isOpen: row.isOpen as boolean,
+                createdAt,
+              });
+            }
+          }
+        }
+        return [];
+      },
       returning: async () => {
         assert.equal(table, submissionsTable);
         assert.ok(!Array.isArray(values));
@@ -164,15 +209,19 @@ class FixtureDatabase {
   transaction<T>(callback: (transaction: FixtureDatabase) => Promise<T>): Promise<T> {
     return callback(this);
   }
+
+  async execute(): Promise<{ rows: [] }> {
+    return { rows: [] };
+  }
 }
 
 function makeSession(
-  options: Partial<Pick<Session, "capacity" | "isOpen">> = {},
+  options: Partial<Pick<Session, "capacity" | "isOpen" | "startsAt">> = {},
 ): Session {
   return {
     id: sessionId,
     sessionType: "artist_spotlight",
-    startsAt: sessionStartsAt,
+    startsAt: options.startsAt ?? sessionStartsAt,
     capacity: options.capacity ?? 5,
     isOpen: options.isOpen ?? true,
     createdAt,
@@ -252,6 +301,32 @@ const submissionInput = {
   trackUrl: "https://open.spotify.com/track/fixture",
   rightsAccepted: true,
 };
+
+test("upcoming sessions seed without a starts_at conflict target and remain idempotent", async () => {
+  const scheduledSessions = generateUpcomingSessionInstances(new Date(), 14);
+  const alreadyExisting = scheduledSessions[0];
+  assert.ok(alreadyExisting);
+  const database = new FixtureDatabase(
+    [makeSession({ startsAt: alreadyExisting.startsAt })],
+    [],
+    true,
+  );
+
+  await withApi(database, async (baseUrl) => {
+    const firstResponse = await fetch(`${baseUrl}/api/sessions`);
+    assert.equal(firstResponse.status, 200);
+    const secondResponse = await fetch(`${baseUrl}/api/sessions`);
+    assert.equal(secondResponse.status, 200);
+  });
+
+  assert.equal(database.sessionInsertions.length, 1);
+  assert.equal(
+    database.sessionInsertions[0]?.rows.length,
+    scheduledSessions.length - 1,
+  );
+  assert.equal(database.sessionInsertions[0]?.conflictTarget, undefined);
+  assert.equal(database.sessions.length, scheduledSessions.length);
+});
 
 test("an artist can select an open session, submit a track, and receive its queue receipt", async () => {
   const database = new FixtureDatabase([makeSession()]);
