@@ -20,11 +20,61 @@ import {
 } from "@workspace/db";
 import { and, asc, count, eq, gt, inArray, max, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
+import { logger } from "../lib/logger";
 import { requireAuth } from "../middlewares/requireAuth";
 import { generateUpcomingSessionInstances } from "../lib/session-schedule";
 
 export function createGatheringRouter(database: typeof db = db): IRouter {
 const router: IRouter = Router();
+
+function safeErrorDetails(
+  error: unknown,
+  depth = 0,
+): Record<string, unknown> {
+  if (typeof error !== "object" || error === null) {
+    return { message: sanitizeErrorMessage(String(error)) };
+  }
+
+  const source = error as Record<string, unknown>;
+  const details: Record<string, unknown> = {};
+  for (const field of [
+    "name",
+    "message",
+    "code",
+    "errno",
+    "syscall",
+    "hostname",
+    "port",
+    "severity",
+    "schema",
+    "table",
+    "column",
+    "constraint",
+    "routine",
+  ]) {
+    const value = source[field];
+    if (typeof value === "string" || typeof value === "number") {
+      details[field] =
+        field === "message" ? sanitizeErrorMessage(String(value)) : value;
+    }
+  }
+
+  if (depth < 2 && source.cause !== undefined) {
+    details.cause = safeErrorDetails(source.cause, depth + 1);
+  }
+
+  return details;
+}
+
+function sanitizeErrorMessage(message: string): string {
+  return message
+    .replace(/\bpostgres(?:ql)?:\/\/[^\s"'<>]+/gi, "[redacted-postgres-url]")
+    .replace(
+      /\b(password|passwd|pwd)\s*[:=]\s*[^,\s;]+/gi,
+      "$1=[redacted]",
+    )
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer [redacted]");
+}
 
 async function ensureUpcomingSessions(): Promise<void> {
   const now = new Date();
@@ -123,19 +173,27 @@ function isHttpUrl(value: string): boolean {
 }
 
 router.get("/sessions", async (_req, res): Promise<void> => {
-  await ensureUpcomingSessions();
-  const sessions = await database
-    .select()
-    .from(sessionsTable)
-    .where(gt(sessionsTable.startsAt, new Date()))
-    .orderBy(asc(sessionsTable.startsAt))
-    .limit(7);
-  const counts = await registrationCounts(sessions);
+  try {
+    await ensureUpcomingSessions();
+    const sessions = await database
+      .select()
+      .from(sessionsTable)
+      .where(gt(sessionsTable.startsAt, new Date()))
+      .orderBy(asc(sessionsTable.startsAt))
+      .limit(7);
+    const counts = await registrationCounts(sessions);
 
-  const response = sessions.map((session) =>
-    sessionSummary(session, counts.get(session.id) ?? 0),
-  );
-  res.json(ListSessionsResponse.parse(response));
+    const response = sessions.map((session) =>
+      sessionSummary(session, counts.get(session.id) ?? 0),
+    );
+    res.json(ListSessionsResponse.parse(response));
+  } catch (error) {
+    logger.error(
+      { event: "public_sessions_failed", error: safeErrorDetails(error) },
+      "Failed to load public sessions",
+    );
+    throw error;
+  }
 });
 
 router.get(
