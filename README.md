@@ -77,7 +77,7 @@ git tag -a v1.2.3 -m "Release v1.2.3"
 git push origin v1.2.3
 ```
 
-The [`create-release.yml`](./.github/workflows/create-release.yml) workflow checks that the tag follows this format, installs the locked dependencies, and runs `pnpm run typecheck` and `pnpm run build`. It publishes a GitHub Release with automatically generated notes only after both checks pass. The workflow needs the repository's Actions token to have `contents: write` permission.
+The [`create-release.yml`](./.github/workflows/create-release.yml) workflow checks that the tag follows this format and is newer than every published stable release, using semantic-version ordering. Duplicate, older, and malformed versions are rejected before the build or release publication. The workflow tests this comparison, installs the locked dependencies, and runs `pnpm run typecheck` and `pnpm run build` before creating the GitHub Release with automatically generated notes. To run the comparison tests locally, use `pnpm run test:release-version`. The workflow needs the repository's Actions token to have `contents: write` permission.
 
 ## GitHub and deployment
 
