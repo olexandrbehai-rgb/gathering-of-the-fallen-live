@@ -18,110 +18,24 @@ import {
   type Session,
   type Submission,
 } from "@workspace/db";
-import { and, asc, count, desc, eq, gt, max, sql } from "drizzle-orm";
+import { and, asc, count, eq, gt, max, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../middlewares/requireAuth";
+import { generateUpcomingSessionInstances } from "../lib/session-schedule";
 
+export function createGatheringRouter(database: typeof db = db): IRouter {
 const router: IRouter = Router();
-const SESSION_TIME_ZONE = "America/Toronto";
-const SESSION_SCHEDULE = {
-  2: { sessionType: "artist_spotlight" as const, hour: 20 },
-  4: { sessionType: "genre_showcase" as const, hour: 20 },
-  6: { sessionType: "weekend_takeover" as const, hour: 21 },
-};
-
-function torontoParts(date: Date): Record<string, string> {
-  return Object.fromEntries(
-    new Intl.DateTimeFormat("en-CA", {
-      timeZone: SESSION_TIME_ZONE,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      weekday: "short",
-    })
-      .formatToParts(date)
-      .filter((part) => part.type !== "literal")
-      .map(({ type, value }) => [type, value]),
-  );
-}
-
-function torontoWallTimeToUtc(
-  year: number,
-  month: number,
-  day: number,
-  hour: number,
-): Date {
-  const intendedWallTime = Date.UTC(year, month - 1, day, hour);
-  let result = new Date(intendedWallTime);
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: SESSION_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
-
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const parts = Object.fromEntries(
-      formatter
-        .formatToParts(result)
-        .filter((part) => part.type !== "literal")
-        .map(({ type, value }) => [type, value]),
-    );
-    const renderedWallTime = Date.UTC(
-      Number(parts.year),
-      Number(parts.month) - 1,
-      Number(parts.day),
-      Number(parts.hour),
-      Number(parts.minute),
-    );
-    result = new Date(result.getTime() + intendedWallTime - renderedWallTime);
-  }
-
-  return result;
-}
 
 async function ensureUpcomingSessions(): Promise<void> {
   const now = new Date();
-  const localNow = torontoParts(now);
-  const localTodayUtc = Date.UTC(
-    Number(localNow.year),
-    Number(localNow.month) - 1,
-    Number(localNow.day),
-  );
-  const sessions: Array<{
-    sessionType: Session["sessionType"];
-    startsAt: Date;
-    capacity: number;
-    isOpen: boolean;
-  }> = [];
-
-  for (let dayOffset = 0; dayOffset < 14 && sessions.length < 3; dayOffset += 1) {
-    const localDate = new Date(localTodayUtc + dayOffset * 86_400_000);
-    const schedule =
-      SESSION_SCHEDULE[localDate.getUTCDay() as keyof typeof SESSION_SCHEDULE];
-    if (!schedule) continue;
-
-    const startsAt = torontoWallTimeToUtc(
-      localDate.getUTCFullYear(),
-      localDate.getUTCMonth() + 1,
-      localDate.getUTCDate(),
-      schedule.hour,
-    );
-    if (startsAt <= now) continue;
-
-    sessions.push({
-      sessionType: schedule.sessionType,
-      startsAt,
-      capacity: 30,
-      isOpen: true,
-    });
-  }
+  const sessions = generateUpcomingSessionInstances(now, 14).map((session) => ({
+    ...session,
+    capacity: 30,
+    isOpen: true,
+  }));
 
   if (sessions.length > 0) {
-    await db
+    await database
       .insert(sessionsTable)
       .values(sessions)
       .onConflictDoNothing({ target: sessionsTable.startsAt });
@@ -159,7 +73,7 @@ async function registrationCounts(
   sessions: Session[],
 ): Promise<Map<string, number>> {
   if (sessions.length === 0) return new Map();
-  const grouped = await db
+  const grouped = await database
     .select({ sessionId: submissionsTable.sessionId, total: count() })
     .from(submissionsTable)
     .groupBy(submissionsTable.sessionId);
@@ -185,12 +99,12 @@ function isHttpUrl(value: string): boolean {
 
 router.get("/sessions", async (_req, res): Promise<void> => {
   await ensureUpcomingSessions();
-  const sessions = await db
+  const sessions = await database
     .select()
     .from(sessionsTable)
     .where(gt(sessionsTable.startsAt, new Date()))
     .orderBy(asc(sessionsTable.startsAt))
-    .limit(6);
+    .limit(7);
   const counts = await registrationCounts(sessions);
 
   const response = sessions.map((session) =>
@@ -208,7 +122,7 @@ router.get(
       return;
     }
 
-    const [session] = await db
+    const [session] = await database
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
       .where(eq(sessionsTable.id, parsedParams.data.sessionId))
@@ -218,7 +132,7 @@ router.get(
       return;
     }
 
-    const rows = await db
+    const rows = await database
       .select({
         queueNumber: submissionsTable.queueNumber,
         artistName: submissionsTable.artistName,
@@ -253,7 +167,7 @@ router.post("/submissions", async (req, res): Promise<void> => {
     return;
   }
 
-  const submission = await db.transaction(async (tx) => {
+  const submission = await database.transaction(async (tx) => {
     const [session] = await tx
       .select()
       .from(sessionsTable)
@@ -320,13 +234,18 @@ router.get(
   requireAuth,
   async (_req, res): Promise<void> => {
     await ensureUpcomingSessions();
-    const sessions = await db
+    const now = new Date();
+    const sessions = await database
       .select()
       .from(sessionsTable)
-      .orderBy(desc(sessionsTable.startsAt))
-      .limit(12);
+      // Default to the nearest upcoming session, then include recent history.
+      .orderBy(
+        sql`case when ${sessionsTable.startsAt} > ${now} then ${sessionsTable.startsAt} end asc`,
+        sql`case when ${sessionsTable.startsAt} <= ${now} then ${sessionsTable.startsAt} end desc`,
+      )
+      .limit(20);
     const counts = await registrationCounts(sessions);
-    const statusCounts = await db
+    const statusCounts = await database
       .select({
         sessionId: submissionsTable.sessionId,
         status: submissionsTable.status,
@@ -359,7 +278,7 @@ router.get(
       res.status(400).json({ error: parsedParams.error.message });
       return;
     }
-    const [session] = await db
+    const [session] = await database
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
       .where(eq(sessionsTable.id, parsedParams.data.sessionId))
@@ -369,7 +288,7 @@ router.get(
       return;
     }
 
-    const rows = await db
+    const rows = await database
       .select()
       .from(submissionsTable)
       .where(eq(submissionsTable.sessionId, parsedParams.data.sessionId))
@@ -399,7 +318,7 @@ router.patch(
       return;
     }
 
-    const [current] = await db
+    const [current] = await database
       .select()
       .from(submissionsTable)
       .where(eq(submissionsTable.id, parsedParams.data.submissionId))
@@ -416,13 +335,14 @@ router.patch(
       (current.status === "approved" &&
         (nextStatus === "played" ||
           nextStatus === "skipped" ||
-          nextStatus === "rejected"));
+          nextStatus === "rejected")) ||
+      (current.status === "played" && nextStatus === "approved");
     if (!allowed) {
       res.status(400).json({ error: "This status change is not allowed." });
       return;
     }
 
-    const [updated] = await db
+    const [updated] = await database
       .update(submissionsTable)
       .set({ status: nextStatus })
       .where(
@@ -446,4 +366,7 @@ router.patch(
   },
 );
 
-export default router;
+return router;
+}
+
+export default createGatheringRouter();
