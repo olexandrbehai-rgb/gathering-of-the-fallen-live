@@ -56,6 +56,33 @@ export function assertReleaseTagIsNewer(candidateTag, existingTags) {
   }
 }
 
+export function extractStableReleaseTags(pages) {
+  if (!Array.isArray(pages)) {
+    throw new Error("GitHub release lookup must return an array of pages.");
+  }
+
+  return pages.flatMap((page) => {
+    if (!Array.isArray(page)) {
+      throw new Error("GitHub release lookup returned an invalid page.");
+    }
+
+    return page.map((release) => {
+      if (
+        !release ||
+        typeof release !== "object" ||
+        typeof release.prerelease !== "boolean" ||
+        typeof release.tag_name !== "string"
+      ) {
+        throw new Error("GitHub release lookup returned an invalid release.");
+      }
+
+      return release;
+    })
+      .filter((release) => release.prerelease === false)
+      .map((release) => release.tag_name);
+  });
+}
+
 async function main() {
   const candidateTag = process.argv[2];
   if (!candidateTag) {
@@ -64,7 +91,8 @@ async function main() {
 
   let input = "";
   for await (const chunk of process.stdin) input += chunk;
-  const existingTags = input.split(/\r?\n/).filter(Boolean);
+  const pages = JSON.parse(input);
+  const existingTags = extractStableReleaseTags(pages);
 
   assertReleaseTagIsNewer(candidateTag, existingTags);
   const latestTag = findLatestStableTag(existingTags);

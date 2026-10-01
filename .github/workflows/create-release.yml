@@ -50,10 +50,7 @@ jobs:
       - name: Check release version is newer
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-            --jq '.[] | select(.prerelease == false) | .tag_name' |
-            node .github/scripts/check-release-version.mjs "$GITHUB_REF_NAME"
+        run: bash .github/scripts/check-release-version.sh "$GITHUB_REF_NAME"
 
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
