@@ -36,8 +36,9 @@ for attempt in $(seq 1 "$max_attempts"); do
 
   for index in "${!endpoints[@]}"; do
     status_code=""
-    curl_succeeded=true
-    if ! status_code=$(curl \
+    curl_exit_code=0
+    curl_succeeded=false
+    if status_code=$(curl \
       --fail \
       --location \
       --silent \
@@ -46,7 +47,9 @@ for attempt in $(seq 1 "$max_attempts"); do
       --output /dev/null \
       --write-out '%{http_code}' \
       "${endpoints[$index]}"); then
-      curl_succeeded=false
+      curl_succeeded=true
+    else
+      curl_exit_code=$?
     fi
 
     if [[ "$curl_succeeded" == true ]] &&
@@ -56,6 +59,13 @@ for attempt in $(seq 1 "$max_attempts"); do
       status_detail="transport failure"
       if [[ "$status_code" =~ ^[1-5][0-9]{2}$ ]]; then
         status_detail="HTTP $status_code"
+      else
+        case "$curl_exit_code" in
+          5|6) status_detail="DNS failure" ;;
+          7|52|55|56) status_detail="connection failure" ;;
+          28) status_detail="timeout" ;;
+          35|51|58|59|60|77) status_detail="TLS failure" ;;
+        esac
       fi
       echo "Attempt $attempt/$max_attempts: ${endpoint_names[$index]} is not ready ($status_detail)."
       all_healthy=false

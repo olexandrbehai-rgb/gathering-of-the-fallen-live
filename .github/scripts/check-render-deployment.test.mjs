@@ -179,6 +179,20 @@ elif [[ "$CURL_MODE" == "health-exhausted" ]] && [[ "$url" == */api/healthz ]]; 
 elif [[ "$CURL_MODE" == "transport-exhausted" ]]; then
   status_code=000
   exit_code=7
+elif [[ "$CURL_MODE" == "transport-classification" ]]; then
+  status_code=000
+  case "$(( (call_count - 1) % 10 ))" in
+    0) exit_code=5 ;;
+    1) exit_code=6 ;;
+    2) exit_code=7 ;;
+    3) exit_code=52 ;;
+    4) exit_code=55 ;;
+    5) exit_code=56 ;;
+    6) exit_code=28 ;;
+    7) exit_code=35 ;;
+    8) exit_code=60 ;;
+    9) exit_code=99 ;;
+  esac
 elif [[ "$CURL_MODE" == "retry" ]] && [[ "$call_count" -eq 2 ]]; then
   status_code=503
   exit_code=22
@@ -386,12 +400,30 @@ test("reports the final HTTP status for only the health endpoint when it remains
   assert.deepEqual(outputs, ["failed_endpoint_details=health endpoint: HTTP 502"]);
 });
 
-test("reports transport failures without exposing endpoint URLs", () => {
+test("classifies common curl transport failures with fixed safe labels", () => {
+  const { result, outputs } = runSmokeCheck("transport-classification");
+
+  assert.equal(result.status, 1);
+  for (const label of [
+    "DNS failure",
+    "connection failure",
+    "TLS failure",
+    "timeout",
+    "transport failure",
+  ]) {
+    assert.match(result.stdout, new RegExp(`is not ready \\(${label}\\)`));
+  }
+  assert.deepEqual(outputs, [
+    "failed_endpoint_details=homepage: TLS failure,health endpoint: transport failure",
+  ]);
+});
+
+test("keeps unclassified transport failures generic without exposing endpoint URLs", () => {
   const { result, outputs } = runSmokeCheck("transport-exhausted");
 
   assert.equal(result.status, 1);
   assert.deepEqual(outputs, [
-    "failed_endpoint_details=homepage: transport failure,health endpoint: transport failure",
+    "failed_endpoint_details=homepage: connection failure,health endpoint: connection failure",
   ]);
   assert.equal(outputs.join("\n").includes(serviceUrl), false);
 });
@@ -408,7 +440,7 @@ test("records each endpoint's status from the final retry attempt", () => {
 test("opens a Render outage issue when a failed check has no matching open issue", async () => {
   const step = getWorkflowStep(failureStepName);
   const calls = await runWorkflowStep(step, {
-    failedEndpointDetails: "homepage: HTTP 503,health endpoint: HTTP 502",
+    failedEndpointDetails: "homepage: HTTP 503,health endpoint: TLS failure",
   });
 
   assert.equal(stepRuns(step, "failure"), true);
@@ -421,7 +453,7 @@ test("opens a Render outage issue when a failed check has no matching open issue
     repo: "service",
     title: outageTitle,
     body: [
-      "The Render deployment availability check failed. Endpoints still failing after retries: homepage (HTTP 503), health endpoint (HTTP 502)",
+      "The Render deployment availability check failed. Endpoints still failing after retries: homepage (HTTP 503), health endpoint (TLS failure)",
       "",
       "Workflow run: https://github.com/example/service/actions/runs/123",
       "Commit: abc123",
@@ -455,17 +487,42 @@ test("comments on the existing outage issue when a failed check repeats", async 
   assert.equal(calls[1].options.body.includes("Workflow run:"), true);
 });
 
+test("includes only approved failure labels and numeric HTTP statuses in issue content", async () => {
+  const step = getWorkflowStep(failureStepName);
+  const calls = await runWorkflowStep(step, {
+    failedEndpointDetails: [
+      "homepage: DNS failure",
+      "health endpoint: connection failure",
+      "homepage: TLS failure",
+      "health endpoint: timeout",
+      "homepage: transport failure",
+      "health endpoint: HTTP 302",
+    ].join(","),
+  });
+  const body = calls.find(({ method }) => method === "create").options.body;
+
+  assert.match(
+    body,
+    /homepage \(DNS failure\), health endpoint \(connection failure\), homepage \(TLS failure\), health endpoint \(timeout\), homepage \(transport failure\), health endpoint \(HTTP 302\)/,
+  );
+  assert.equal(body.includes(serviceUrl), false);
+  assert.equal(body.includes("credential"), false);
+});
+
 test("ignores unsafe endpoint details before writing an outage issue", async () => {
   const step = getWorkflowStep(failureStepName);
   const calls = await runWorkflowStep(step, {
     failedEndpointDetails:
-      `homepage: HTTP 503,health endpoint: transport failure,${serviceUrl}: credential`,
+      `homepage: HTTP 503,health endpoint: DNS failure,https://operator:canary@render.example.test/: credential,homepage: TLS failure for ${serviceUrl},health endpoint: TLS failure token=canary,homepage: HTTP 999`,
   });
   const body = calls.find(({ method }) => method === "create").options.body;
 
-  assert.match(body, /homepage \(HTTP 503\), health endpoint \(transport failure\)/);
+  assert.match(body, /homepage \(HTTP 503\), health endpoint \(DNS failure\)/);
   assert.equal(body.includes(serviceUrl), false);
   assert.equal(body.includes("credential"), false);
+  assert.equal(body.includes("operator:canary"), false);
+  assert.equal(body.includes("canary"), false);
+  assert.equal(body.includes("HTTP 999"), false);
 });
 
 test("comments on and closes the matching outage issue after recovery", async () => {
