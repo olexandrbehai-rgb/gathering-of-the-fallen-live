@@ -18,6 +18,7 @@ max_attempts=30
 
 for attempt in $(seq 1 "$max_attempts"); do
   all_healthy=true
+  failed_endpoints=()
 
   for index in "${!endpoints[@]}"; do
     if curl \
@@ -32,6 +33,7 @@ for attempt in $(seq 1 "$max_attempts"); do
     else
       echo "Attempt $attempt/$max_attempts: ${endpoint_names[$index]} is not ready."
       all_healthy=false
+      failed_endpoints+=("${endpoint_names[$index]}")
     fi
   done
 
@@ -44,6 +46,11 @@ for attempt in $(seq 1 "$max_attempts"); do
     sleep 30
   fi
 done
+
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  failed_endpoint_list=$(IFS=,; echo "${failed_endpoints[*]}")
+  printf 'failed_endpoints=%s\n' "$failed_endpoint_list" >> "$GITHUB_OUTPUT"
+fi
 
 echo "::error::Render homepage and health endpoint did not both return success after $max_attempts attempts."
 exit 1

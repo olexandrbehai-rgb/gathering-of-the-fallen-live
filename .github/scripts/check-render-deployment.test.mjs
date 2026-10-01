@@ -24,8 +24,10 @@ function runSmokeCheck(mode) {
   mkdirSync(binDirectory);
   const curlLog = join(tempDirectory, "curl.log");
   const sleepLog = join(tempDirectory, "sleep.log");
+  const outputPath = join(tempDirectory, "github-output");
   const curlPath = join(binDirectory, "curl");
   const sleepPath = join(binDirectory, "sleep");
+  writeFileSync(outputPath, "");
 
   writeFileSync(
     curlPath,
@@ -34,7 +36,10 @@ set -euo pipefail
 url="\${!#}"
 printf '%s\\n' "$url" >> "$CURL_LOG"
 call_count=$(wc -l < "$CURL_LOG")
-if [[ "$CURL_MODE" == "exhausted" ]] || { [[ "$CURL_MODE" == "retry" ]] && [[ "$call_count" -eq 2 ]]; }; then
+if [[ "$CURL_MODE" == "exhausted" ]] ||
+  { [[ "$CURL_MODE" == "homepage-exhausted" ]] && [[ "$url" == */ ]]; } ||
+  { [[ "$CURL_MODE" == "health-exhausted" ]] && [[ "$url" == */api/healthz ]]; } ||
+  { [[ "$CURL_MODE" == "retry" ]] && [[ "$call_count" -eq 2 ]]; }; then
   exit 22
 fi
 `,
@@ -56,6 +61,7 @@ printf '%s\\n' "$*" >> "$SLEEP_LOG"
       CURL_LOG: curlLog,
       SLEEP_LOG: sleepLog,
       CURL_MODE: mode,
+      GITHUB_OUTPUT: outputPath,
       RENDER_SERVICE_URL: serviceUrl,
     },
     timeout: 30_000,
@@ -74,6 +80,7 @@ printf '%s\\n' "$*" >> "$SLEEP_LOG"
     result,
     requestedEndpoints: readLines(curlLog),
     sleeps: readLines(sleepLog),
+    outputs: readLines(outputPath),
   };
 }
 
@@ -97,7 +104,7 @@ test("retries both endpoints when either endpoint is not ready", () => {
 });
 
 test("fails after exhausting retries and continues checking both endpoints", () => {
-  const { result, requestedEndpoints, sleeps } = runSmokeCheck("exhausted");
+  const { result, requestedEndpoints, sleeps, outputs } = runSmokeCheck("exhausted");
   const attemptedEndpointPairs = Array.from(
     { length: requestedEndpoints.length / expectedEndpoints.length },
     (_, attempt) =>
@@ -115,4 +122,19 @@ test("fails after exhausting retries and continues checking both endpoints", () 
   );
   assert.equal(sleeps.length, 29);
   assert.match(result.stdout, /did not both return success after 30 attempts/);
+  assert.deepEqual(outputs, ["failed_endpoints=homepage,health endpoint"]);
+});
+
+test("reports only the homepage when it remains unavailable after retries", () => {
+  const { result, outputs } = runSmokeCheck("homepage-exhausted");
+
+  assert.equal(result.status, 1);
+  assert.deepEqual(outputs, ["failed_endpoints=homepage"]);
+});
+
+test("reports only the health endpoint when it remains unavailable after retries", () => {
+  const { result, outputs } = runSmokeCheck("health-exhausted");
+
+  assert.equal(result.status, 1);
+  assert.deepEqual(outputs, ["failed_endpoints=health endpoint"]);
 });
