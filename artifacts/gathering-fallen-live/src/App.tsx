@@ -1,4 +1,4 @@
-import { type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
@@ -58,6 +58,8 @@ import {
   refreshAfterArtistSubmission,
   refreshAfterHostQueueChange,
 } from '@/lib/submission-workflow';
+import { LiveTrackPlayer, type LiveTrackPlayerHandle } from '@/components/live-track-player';
+import { canPlayTrackInline } from '@/lib/track-source';
 import stageBackdrop from '@assets/generated_images/gfl-live-stage-background.png';
 
 type Language = 'en' | 'fr' | 'ua';
@@ -98,7 +100,8 @@ const copy: Record<Language, Copy> = {
     guideBody2: 'Start the track on stream.', guideBody3: 'Keep the order moving.', guideBody4: 'Confirm the track has been heard.',
     emptyQueue: 'The queue is quiet.', emptyQueueBody: 'Approved artists will appear here in assigned order.',
     openLink: 'Open track link', audioFallback: 'This link cannot play inline. Open it in a new tab.',
-    embeddedPlayer: 'Embedded track player',
+    embeddedPlayer: 'Embedded track player', playerLoading: 'Connecting to the player…',
+    playerError: 'Playback did not start. Try the player controls or open the track link.',
     menu: 'Menu', close: 'Close', language: 'Language', loading: 'Loading the room…', error: 'Something went wrong.',
     retry: 'Try again', liveBadge: 'On air', available: 'available', day: 'Session',
     artistSpotlight: 'Artist spotlight', genreShowcase: 'Genre showcase', weekendTakeover: 'Weekend takeover',
@@ -148,7 +151,8 @@ const copy: Record<Language, Copy> = {
     guide4: 'Marquer passée', guideBody1: 'Jetez un œil à l’artiste et au texte.', guideBody2: 'Lancez la piste en direct.',
     guideBody3: 'Gardez l’ordre en mouvement.', guideBody4: 'Confirmez que la piste est passée.', emptyQueue: 'La file est silencieuse.',
     emptyQueueBody: 'Les artistes approuvés apparaîtront ici dans l’ordre.', openLink: 'Ouvrir le lien',
-    embeddedPlayer: 'Lecteur de musique intégré',
+    embeddedPlayer: 'Lecteur de musique intégré', playerLoading: 'Connexion au lecteur…',
+    playerError: 'La lecture n’a pas démarré. Essayez les commandes du lecteur ou ouvrez le lien.',
     audioFallback: 'Ce lien ne peut pas être lu ici. Ouvrez-le dans un nouvel onglet.', menu: 'Menu', close: 'Fermer',
     language: 'Langue', loading: 'Chargement de la salle…', error: 'Un problème est survenu.', retry: 'Réessayer',
     liveBadge: 'En ondes', available: 'disponibles', day: 'Session', artistSpotlight: 'Coup de projecteur',
@@ -199,7 +203,8 @@ const copy: Record<Language, Copy> = {
     guide4: 'Позначте програним', guideBody1: 'Швидко перегляньте артиста і текст.', guideBody2: 'Запустіть трек в ефірі.',
     guideBody3: 'Підтримуйте порядок.', guideBody4: 'Підтвердіть, що трек прозвучав.', emptyQueue: 'Черга тиха.',
     emptyQueueBody: 'Схвалені артисти з’являться тут у визначеному порядку.', openLink: 'Відкрити посилання',
-    embeddedPlayer: 'Вбудований аудіопрогравач',
+    embeddedPlayer: 'Вбудований аудіопрогравач', playerLoading: 'Підключення до програвача…',
+    playerError: 'Відтворення не почалося. Спробуйте кнопки програвача або відкрийте посилання.',
     audioFallback: 'Це посилання не можна відтворити тут. Відкрийте його в новій вкладці.', menu: 'Меню', close: 'Закрити',
     language: 'Мова', loading: 'Завантажуємо кімнату…', error: 'Щось пішло не так.', retry: 'Повторити',
     liveBadge: 'В ефірі', available: 'доступно', day: 'Сесія', artistSpotlight: 'Фокус на артистах',
@@ -492,90 +497,288 @@ function AdminQueueRow({ item, t, onStatus, pending }: { item: AdminQueueSubmiss
 }
 
 function LivePage({ sessionId }: { sessionId: string }) {
-  const { language, t } = useLanguage();
-  const query = useGetAdminSessionQueue(sessionId, { query: { enabled: Boolean(sessionId), queryKey: getGetAdminSessionQueueQueryKey(sessionId) } });
+  const { t } = useLanguage();
+  const query = useGetAdminSessionQueue(sessionId, {
+    query: {
+      enabled: Boolean(sessionId),
+      queryKey: getGetAdminSessionQueueQueryKey(sessionId),
+    },
+  });
   const queue = query.data || [];
   const [playing, setPlaying] = useState(false);
+  const [readyTrackId, setReadyTrackId] = useState<string | null>(null);
+  const playbackRef = useRef<LiveTrackPlayerHandle>(null);
   const mutation = useUpdateSubmissionStatus();
   const queryClient = useQueryClient();
   const ordered = queue
-    .filter((item) => item.status === 'approved' || item.status === 'played' || item.status === 'skipped')
+    .filter(
+      (item) =>
+        item.status === "approved" ||
+        item.status === "played" ||
+        item.status === "skipped",
+    )
     .sort((a, b) => a.queueNumber - b.queueNumber);
   const current = queue
-    .filter((item) => item.status === 'approved')
+    .filter((item) => item.status === "approved")
     .sort((a, b) => a.queueNumber - b.queueNumber)[0];
-  const currentPosition = current ? ordered.findIndex((item) => item.id === current.id) + 1 : 0;
+  const currentPosition = current
+    ? ordered.findIndex((item) => item.id === current.id) + 1
+    : 0;
   const nextItems = current
     ? queue
-      .filter((item) => item.status === 'approved' && item.queueNumber > current.queueNumber)
-      .sort((a, b) => a.queueNumber - b.queueNumber)
-      .slice(0, 3)
+        .filter(
+          (item) =>
+            item.status === "approved" &&
+            item.queueNumber > current.queueNumber,
+        )
+        .sort((a, b) => a.queueNumber - b.queueNumber)
+        .slice(0, 3)
     : [];
+  const hasInlinePlayer = current
+    ? canPlayTrackInline(current.trackUrl)
+    : false;
+  const playerReady = Boolean(current && readyTrackId === current.id);
+  const currentTrackId = current?.id;
+  const onPlayerReadyChange = useCallback(
+    (ready: boolean) => {
+      setReadyTrackId(ready && currentTrackId ? currentTrackId : null);
+    },
+    [currentTrackId],
+  );
+
   useEffect(() => setPlaying(false), [current?.id]);
-  const status = (id: string, value: 'played' | 'skipped') => mutation.mutate({ submissionId: id, data: { status: value } }, { onSuccess: () => { refreshAfterHostQueueChange(queryClient, sessionId); setPlaying(false); } });
-  if (query.isLoading) return <Shell><main className="mx-auto max-w-5xl px-4 py-20"><LoadingState t={t} /></main></Shell>;
-  if (query.isError) return <Shell><main className="mx-auto max-w-5xl px-4 py-20"><ErrorState t={t} onRetry={() => query.refetch()} /></main></Shell>;
-  return <Shell><main className="mx-auto max-w-[1440px] px-4 py-10 sm:px-7 sm:py-14"><div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/70 pb-6"><div className="flex items-center gap-3"><span className="size-3 animate-live rounded-full bg-accent" /><div><p className="font-mono-ui text-[10px] uppercase tracking-[.24em] text-accent">{t('liveBadge')}</p><h1 className="mt-1 font-display text-3xl">{t('live')}</h1></div></div><Link href="/admin" className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground" data-testid="link-live-admin"><ChevronLeft className="size-4" />{t('admin')}</Link></div><div className="mt-8 grid gap-6 xl:grid-cols-[1fr_340px]"><section><div className="glass-panel rounded-2xl border border-primary/45 p-5 sm:p-8"><div className="flex items-center justify-between"><span className="font-mono-ui text-xs text-primary">{current ? `${t('trackOf')} ${String(currentPosition).padStart(2, '0')} / ${String(ordered.length).padStart(2, '0')}` : t('upcoming')}</span><AudioLines className="size-5 text-primary" /></div>{current ? <><div className="mt-9 grid gap-5 sm:grid-cols-[170px_1fr] sm:items-center"><div className="grid aspect-square place-items-center rounded-xl border border-primary/30 bg-[radial-gradient(circle_at_40%_30%,hsl(351_90%_61%/.3),transparent_35%),linear-gradient(145deg,hsl(211_44%_15%),hsl(223_42%_4%))] shadow-[0_0_35px_hsl(205_100%_64%/.14)]"><Headphones className="size-14 text-primary/70" /></div><div><p className="font-mono-ui text-[10px] uppercase tracking-[.2em] text-accent">{t('nowPlaying')}</p><h2 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">{current.artistName}</h2><p className="mt-2 text-xl text-foreground">{current.songTitle}</p><div className="mt-4 flex flex-wrap gap-2"><span className="rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground">{current.genre}</span><span className="rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground">{current.country}</span></div><p className="mt-5 max-w-xl text-sm leading-7 text-muted-foreground">{current.intro}</p><TrackPlayer key={current.id} url={current.trackUrl} playing={playing} setPlaying={setPlaying} t={t} /></div></div><div className="mt-8 grid gap-3 sm:grid-cols-3"><button type="button" onClick={() => setPlaying((value) => !value)} className="flex items-center justify-center gap-2 rounded-md bg-primary py-4 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary/85" data-testid="button-live-play">{playing ? <Pause className="size-5" /> : <Play className="size-5 fill-current" />}{playing ? t('pause') : t('play')}</button><button type="button" disabled={mutation.isPending} onClick={() => status(current.id, 'skipped')} className="flex items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 py-4 text-xs font-bold uppercase tracking-wider text-foreground hover:bg-primary/10 disabled:opacity-50" data-testid="button-live-next"><SkipForward className="size-5" />{t('next')}</button><button type="button" disabled={mutation.isPending} onClick={() => status(current.id, 'played')} className="flex items-center justify-center gap-2 rounded-md border border-accent/50 bg-accent/10 py-4 text-xs font-bold uppercase tracking-wider text-accent hover:bg-accent/15 disabled:opacity-50" data-testid="button-live-mark-played"><Check className="size-5" />{t('markPlayed')}</button></div></> : <div className="py-20 text-center"><ListMusic className="mx-auto size-10 text-primary" /><h2 className="mt-5 font-display text-2xl">{t('emptyQueue')}</h2><p className="mt-2 text-sm text-muted-foreground">{t('emptyQueueBody')}</p></div>}</div><div className="mt-6 rounded-xl border border-border bg-card/25 p-5"><div className="flex items-center justify-between"><h2 className="font-display text-xl">{t('upcoming')}</h2><span className="font-mono-ui text-[10px] uppercase tracking-wider text-muted-foreground">{nextItems.length} {t('trackOf')}</span></div><div className="mt-4 divide-y divide-border/70">{nextItems.map((item) => <div key={item.id} className="flex items-center gap-3 py-3" data-testid={`row-live-upcoming-${item.id}`}><span className="w-7 font-mono-ui text-xs text-primary">{String(item.queueNumber).padStart(2, '0')}</span><div className="min-w-0 flex-1"><strong className="block truncate text-sm">{item.songTitle}</strong><span className="block truncate text-xs text-muted-foreground">{item.artistName}</span></div><span className="rounded-full border border-border px-2 py-1 text-[10px] text-muted-foreground">{item.genre}</span></div>)}</div></div></section><aside className="space-y-5"><div className="rounded-xl border border-border bg-card/35 p-6"><p className="font-mono-ui text-[10px] uppercase tracking-[.24em] text-primary">{t('hostGuide')}</p><div className="mt-5 space-y-4">{[['guide1', 'guideBody1'], ['guide2', 'guideBody2'], ['guide3', 'guideBody3'], ['guide4', 'guideBody4']].map(([title, body], i) => <div className="flex gap-3" key={title}><span className="grid size-7 shrink-0 place-items-center rounded-full border border-primary/50 font-mono-ui text-xs text-primary">{i + 1}</span><div><strong className="text-sm">{t(title)}</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">{t(body)}</p></div></div>)}</div></div><div className="rounded-xl border border-accent/25 bg-accent/5 p-6"><Mic2 className="size-5 text-accent" /><p className="mt-4 text-sm leading-6 text-muted-foreground">{t('submitNote')}</p></div></aside></div></main></Shell>;
-}
 
-function TrackPlayer({ url, playing, setPlaying, t }: { url: string; playing: boolean; setPlaying: (value: boolean) => void; t: (key: string) => string }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const embedUrl = getTrackEmbedUrl(url, playing);
-  const isAudio = /\.(mp3|wav|ogg|m4a)(\?.*)?$/i.test(url);
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (playing) {
-      void audio.play().catch(() => setPlaying(false));
-    } else {
-      audio.pause();
-    }
-  }, [playing, setPlaying, url]);
-  if (!url) return null;
-  if (embedUrl) {
-    return <div className="mt-5 overflow-hidden rounded-lg border border-border bg-background/60"><iframe src={embedUrl} title={t('embeddedPlayer')} allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" allowFullScreen className="h-[166px] w-full" data-testid="iframe-live-track" /></div>;
-  }
-  if (isAudio) {
-    return <div className="mt-5"><audio ref={audioRef} src={url} controls onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} className="h-10 w-full" data-testid="audio-live-player" /></div>;
-  }
-  return <div className="mt-5"><a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-md border border-primary/40 px-3 py-2 text-xs font-bold uppercase tracking-wider text-primary hover:bg-primary/10" data-testid="link-live-track"><ExternalLink className="size-3.5" />{t('openLink')}</a><p className="mt-2 text-xs text-muted-foreground">{t('audioFallback')}</p></div>;
-}
+  const status = (id: string, value: "played" | "skipped") =>
+    mutation.mutate(
+      { submissionId: id, data: { status: value } },
+      {
+        onSuccess: () => {
+          playbackRef.current?.stopPlayback();
+          refreshAfterHostQueueChange(queryClient, sessionId);
+          setPlaying(false);
+        },
+      },
+    );
 
-function getTrackEmbedUrl(trackUrl: string, playing: boolean): string | null {
-  try {
-    const url = new URL(trackUrl);
-    const hostname = url.hostname.replace(/^www\./, '').toLowerCase();
-    if (hostname === 'youtu.be' || hostname === 'youtube.com' || hostname === 'm.youtube.com' || hostname === 'youtube-nocookie.com') {
-      const videoId = hostname === 'youtu.be'
-        ? url.pathname.split('/').filter(Boolean)[0]
-        : url.pathname.startsWith('/embed/') || url.pathname.startsWith('/shorts/')
-          ? url.pathname.split('/').filter(Boolean)[1]
-          : url.searchParams.get('v');
-      if (!videoId) return null;
-      const embed = new URL(`https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}`);
-      embed.searchParams.set('autoplay', playing ? '1' : '0');
-      embed.searchParams.set('rel', '0');
-      return embed.toString();
-    }
-    if (hostname === 'open.spotify.com') {
-      const match = url.pathname.match(/^\/(track|album|playlist|episode)\/([A-Za-z0-9]+)\/?$/);
-      if (!match) return null;
-      const embed = new URL(`https://open.spotify.com/embed/${match[1]}/${match[2]}`);
-      if (playing) embed.searchParams.set('autoplay', '1');
-      return embed.toString();
-    }
-    if (hostname === 'soundcloud.com' || hostname === 'm.soundcloud.com') {
-      const embed = new URL('https://w.soundcloud.com/player/');
-      embed.searchParams.set('url', url.toString());
-      embed.searchParams.set('color', '#9b6cff');
-      embed.searchParams.set('auto_play', String(playing));
-      embed.searchParams.set('hide_related', 'true');
-      return embed.toString();
-    }
-    return null;
-  } catch {
-    return null;
+  if (query.isLoading) {
+    return (
+      <Shell>
+        <main className="mx-auto max-w-5xl px-4 py-20">
+          <LoadingState t={t} />
+        </main>
+      </Shell>
+    );
   }
+  if (query.isError) {
+    return (
+      <Shell>
+        <main className="mx-auto max-w-5xl px-4 py-20">
+          <ErrorState t={t} onRetry={() => query.refetch()} />
+        </main>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell>
+      <main className="mx-auto max-w-[1440px] px-4 py-10 sm:px-7 sm:py-14">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/70 pb-6">
+          <div className="flex items-center gap-3">
+            <span className="size-3 animate-live rounded-full bg-accent" />
+            <div>
+              <p className="font-mono-ui text-[10px] uppercase tracking-[.24em] text-accent">
+                {t("liveBadge")}
+              </p>
+              <h1 className="mt-1 font-display text-3xl">{t("live")}</h1>
+            </div>
+          </div>
+          <Link
+            href="/admin"
+            className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+            data-testid="link-live-admin"
+          >
+            <ChevronLeft className="size-4" />
+            {t("admin")}
+          </Link>
+        </div>
+
+        <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_340px]">
+          <section>
+            <div className="glass-panel rounded-2xl border border-primary/45 p-5 sm:p-8">
+              <div className="flex items-center justify-between">
+                <span className="font-mono-ui text-xs text-primary">
+                  {current
+                    ? `${t("trackOf")} ${String(currentPosition).padStart(2, "0")} / ${String(ordered.length).padStart(2, "0")}`
+                    : t("upcoming")}
+                </span>
+                <AudioLines className="size-5 text-primary" />
+              </div>
+
+              {current ? (
+                <>
+                  <div className="mt-9 grid gap-5 sm:grid-cols-[170px_1fr] sm:items-center">
+                    <div className="grid aspect-square place-items-center rounded-xl border border-primary/30 bg-[radial-gradient(circle_at_40%_30%,hsl(351_90%_61%/.3),transparent_35%),linear-gradient(145deg,hsl(211_44%_15%),hsl(223_42%_4%))] shadow-[0_0_35px_hsl(205_100%_64%/.14)]">
+                      <Headphones className="size-14 text-primary/70" />
+                    </div>
+                    <div>
+                      <p className="font-mono-ui text-[10px] uppercase tracking-[.2em] text-accent">
+                        {t("nowPlaying")}
+                      </p>
+                      <h2 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">
+                        {current.artistName}
+                      </h2>
+                      <p className="mt-2 text-xl text-foreground">
+                        {current.songTitle}
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <span className="rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground">
+                          {current.genre}
+                        </span>
+                        <span className="rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground">
+                          {current.country}
+                        </span>
+                      </div>
+                      <p className="mt-5 max-w-xl text-sm leading-7 text-muted-foreground">
+                        {current.intro}
+                      </p>
+                      <LiveTrackPlayer
+                        key={current.id}
+                        ref={playbackRef}
+                        url={current.trackUrl}
+                        playing={playing}
+                        setPlaying={setPlaying}
+                        onReadyChange={onPlayerReadyChange}
+                        embeddedPlayerTitle={t("embeddedPlayer")}
+                        t={t}
+                      />
+                    </div>
+                  </div>
+
+                  <div
+                    className={`mt-8 grid gap-3 ${hasInlinePlayer ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
+                  >
+                    {hasInlinePlayer && (
+                      <button
+                        type="button"
+                        disabled={!playerReady || mutation.isPending}
+                        onClick={() => playbackRef.current?.togglePlayback()}
+                        className="flex items-center justify-center gap-2 rounded-md bg-primary py-4 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary/85 disabled:cursor-not-allowed disabled:opacity-50"
+                        data-testid="button-live-play"
+                      >
+                        {playing ? (
+                          <Pause className="size-5" />
+                        ) : (
+                          <Play className="size-5 fill-current" />
+                        )}
+                        {playing ? t("pause") : t("play")}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      disabled={mutation.isPending}
+                      onClick={() => status(current.id, "skipped")}
+                      className="flex items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 py-4 text-xs font-bold uppercase tracking-wider text-foreground hover:bg-primary/10 disabled:opacity-50"
+                      data-testid="button-live-next"
+                    >
+                      <SkipForward className="size-5" />
+                      {t("next")}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={mutation.isPending}
+                      onClick={() => status(current.id, "played")}
+                      className="flex items-center justify-center gap-2 rounded-md border border-accent/50 bg-accent/10 py-4 text-xs font-bold uppercase tracking-wider text-accent hover:bg-accent/15 disabled:opacity-50"
+                      data-testid="button-live-mark-played"
+                    >
+                      <Check className="size-5" />
+                      {t("markPlayed")}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="py-20 text-center">
+                  <ListMusic className="mx-auto size-10 text-primary" />
+                  <h2 className="mt-5 font-display text-2xl">
+                    {t("emptyQueue")}
+                  </h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {t("emptyQueueBody")}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 rounded-xl border border-border bg-card/25 p-5">
+              <div className="flex items-center justify-between">
+                <h2 className="font-display text-xl">{t("upcoming")}</h2>
+                <span className="font-mono-ui text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {nextItems.length} {t("trackOf")}
+                </span>
+              </div>
+              <div className="mt-4 divide-y divide-border/70">
+                {nextItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 py-3"
+                    data-testid={`row-live-upcoming-${item.id}`}
+                  >
+                    <span className="w-7 font-mono-ui text-xs text-primary">
+                      {String(item.queueNumber).padStart(2, "0")}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <strong className="block truncate text-sm">
+                        {item.songTitle}
+                      </strong>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {item.artistName}
+                      </span>
+                    </div>
+                    <span className="rounded-full border border-border px-2 py-1 text-[10px] text-muted-foreground">
+                      {item.genre}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <aside className="space-y-5">
+            <div className="rounded-xl border border-border bg-card/35 p-6">
+              <p className="font-mono-ui text-[10px] uppercase tracking-[.24em] text-primary">
+                {t("hostGuide")}
+              </p>
+              <div className="mt-5 space-y-4">
+                {[
+                  ["guide1", "guideBody1"],
+                  ["guide2", "guideBody2"],
+                  ["guide3", "guideBody3"],
+                  ["guide4", "guideBody4"],
+                ].map(([title, body], index) => (
+                  <div className="flex gap-3" key={title}>
+                    <span className="grid size-7 shrink-0 place-items-center rounded-full border border-primary/50 font-mono-ui text-xs text-primary">
+                      {index + 1}
+                    </span>
+                    <div>
+                      <strong className="text-sm">{t(title)}</strong>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        {t(body)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-xl border border-accent/25 bg-accent/5 p-6">
+              <Mic2 className="size-5 text-accent" />
+              <p className="mt-4 text-sm leading-6 text-muted-foreground">
+                {t("submitNote")}
+              </p>
+            </div>
+          </aside>
+        </div>
+      </main>
+    </Shell>
+  );
 }
 
 function AuthPages() {
