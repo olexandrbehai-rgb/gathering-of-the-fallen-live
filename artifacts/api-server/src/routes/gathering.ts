@@ -18,7 +18,7 @@ import {
   type Session,
   type Submission,
 } from "@workspace/db";
-import { and, asc, count, eq, gt, max, sql } from "drizzle-orm";
+import { and, asc, count, eq, gt, inArray, max, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../middlewares/requireAuth";
 import { generateUpcomingSessionInstances } from "../lib/session-schedule";
@@ -34,12 +34,37 @@ async function ensureUpcomingSessions(): Promise<void> {
     isOpen: true,
   }));
 
-  if (sessions.length > 0) {
-    await database
-      .insert(sessionsTable)
-      .values(sessions)
-      .onConflictDoNothing({ target: sessionsTable.startsAt });
-  }
+  if (sessions.length === 0) return;
+
+  await database.transaction(async (transaction) => {
+    // Render may still have a legacy sessions table without the starts_at
+    // unique index. Serialize seeders and check existing rows before inserting
+    // so the public sessions endpoint does not depend on that index.
+    await transaction.execute(sql`select pg_advisory_xact_lock(1193051001, 1)`);
+
+    const existingSessions = await transaction
+      .select({ startsAt: sessionsTable.startsAt })
+      .from(sessionsTable)
+      .where(
+        inArray(
+          sessionsTable.startsAt,
+          sessions.map((session) => session.startsAt),
+        ),
+      );
+    const existingStartsAt = new Set(
+      existingSessions.map((session) => session.startsAt.getTime()),
+    );
+    const missingSessions = sessions.filter(
+      (session) => !existingStartsAt.has(session.startsAt.getTime()),
+    );
+
+    if (missingSessions.length > 0) {
+      await transaction
+        .insert(sessionsTable)
+        .values(missingSessions)
+        .onConflictDoNothing();
+    }
+  });
 }
 
 function asIso(value: Date): string {
