@@ -183,14 +183,27 @@ test("runs the release check before the publication step", () => {
     "utf8",
   );
   const checkIndex = workflow.indexOf(
-    'run: bash .github/scripts/check-release-version.sh "$GITHUB_REF_NAME"',
+    'bash .github/scripts/check-release-version.sh "$candidate_tag"',
   );
-  const publishIndex = workflow.indexOf("gh release create");
+  const publishIndex = workflow.indexOf(
+    'gh release create "$candidate_tag" --verify-tag --generate-notes',
+  );
 
   assert.notEqual(checkIndex, -1, "workflow must run the tested release check");
   assert.ok(
     publishIndex > checkIndex,
     "release check must run before publishing the release",
+  );
+  assert.match(workflow, /fetch-depth: 0/);
+  assert.match(workflow, /git tag --list 'v\*'/);
+  assert.match(workflow, /sort -V/);
+  assert.match(workflow, /for candidate_tag in "\$\{release_tags\[@\]\}"/);
+  assert.match(workflow, /pnpm run typecheck[\s\S]*pnpm run build/);
+  assert.match(workflow, /gh release view "\$candidate_tag"/);
+  assert.ok(
+    workflow.indexOf("Reject a malformed triggering tag") >
+      workflow.indexOf("Publish every missing stable release in order"),
+    "a malformed trigger must not stop this run from reconciling stable tags",
   );
 });
 
