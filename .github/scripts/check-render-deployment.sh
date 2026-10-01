@@ -11,6 +11,18 @@ if [[ ! "$RENDER_SERVICE_URL" =~ ^https:// ]]; then
   exit 1
 fi
 
+if ! node -e '
+try {
+  const serviceUrl = new URL(process.argv[1]);
+  if (serviceUrl.protocol !== "https:" || !serviceUrl.hostname) process.exitCode = 1;
+} catch {
+  process.exitCode = 1;
+}
+' "$RENDER_SERVICE_URL" >/dev/null 2>&1; then
+  echo "::error::RENDER_SERVICE_URL must be a valid absolute HTTPS URL with a hostname."
+  exit 1
+fi
+
 base_url="${RENDER_SERVICE_URL%/}"
 endpoints=("$base_url/" "$base_url/api/healthz")
 endpoint_names=("homepage" "health endpoint")

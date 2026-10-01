@@ -238,6 +238,27 @@ test("rejects an HTTP service URL before making any curl calls", () => {
   assert.deepEqual(sleeps, []);
 });
 
+test("rejects malformed HTTPS service URLs before making any curl calls", () => {
+  for (const serviceUrl of [
+    "https://",
+    "https://?query",
+    "https://#fragment",
+    "https://:443",
+  ]) {
+    const { result, requestedEndpoints, sleeps } = runSmokeCheck("success", {
+      serviceUrl,
+    });
+
+    assert.equal(result.status, 1, serviceUrl);
+    assert.match(
+      result.stdout,
+      /RENDER_SERVICE_URL must be a valid absolute HTTPS URL with a hostname/,
+    );
+    assert.deepEqual(requestedEndpoints, [], serviceUrl);
+    assert.deepEqual(sleeps, [], serviceUrl);
+  }
+});
+
 test("succeeds when the homepage and health endpoint are healthy", () => {
   const { result, requestedEndpoints, sleeps } = runSmokeCheck("success");
 
