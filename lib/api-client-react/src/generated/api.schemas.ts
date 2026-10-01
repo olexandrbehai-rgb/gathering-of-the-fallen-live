@@ -7,6 +7,8 @@
  */
 export interface HealthStatus {
   status: string;
+  /** @nullable */
+  revision: string | null;
 }
 
 export type SessionSummarySessionType = typeof SessionSummarySessionType[keyof typeof SessionSummarySessionType];

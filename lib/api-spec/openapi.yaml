@@ -177,8 +177,13 @@ components:
       properties:
         status:
           type: string
+        revision:
+          type:
+            - string
+            - "null"
       required:
         - status
+        - revision
     SessionSummary:
       type: object
       required: [id, sessionType, startsAt, capacity, registered, available, isOpen]

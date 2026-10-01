@@ -7,6 +7,7 @@ services:
     autoDeployTrigger: commit
     buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm run build
     startCommand: corepack pnpm --filter @workspace/api-server run start
+    # Render supplies RENDER_GIT_COMMIT at runtime; /api/healthz exposes it as revision.
     healthCheckPath: /api/healthz
     envVars:
       - key: NODE_VERSION
