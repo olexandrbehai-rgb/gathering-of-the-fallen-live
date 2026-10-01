@@ -18,7 +18,10 @@ const expectedEndpoints = [
   `${serviceUrl}/api/healthz`,
 ];
 
-function runSmokeCheck(mode) {
+function runSmokeCheck(mode, options = {}) {
+  const configuredServiceUrl = Object.hasOwn(options, "serviceUrl")
+    ? options.serviceUrl
+    : serviceUrl;
   const tempDirectory = mkdtempSync(join(tmpdir(), "render-smoke-test-"));
   const binDirectory = join(tempDirectory, "bin");
   mkdirSync(binDirectory);
@@ -53,17 +56,23 @@ printf '%s\\n' "$*" >> "$SLEEP_LOG"
   chmodSync(curlPath, 0o755);
   chmodSync(sleepPath, 0o755);
 
+  const env = {
+    ...process.env,
+    PATH: `${binDirectory}:${process.env.PATH}`,
+    CURL_LOG: curlLog,
+    SLEEP_LOG: sleepLog,
+    CURL_MODE: mode,
+    GITHUB_OUTPUT: outputPath,
+  };
+  if (configuredServiceUrl === null) {
+    delete env.RENDER_SERVICE_URL;
+  } else {
+    env.RENDER_SERVICE_URL = configuredServiceUrl;
+  }
+
   const result = spawnSync("bash", [scriptPath.pathname], {
     encoding: "utf8",
-    env: {
-      ...process.env,
-      PATH: `${binDirectory}:${process.env.PATH}`,
-      CURL_LOG: curlLog,
-      SLEEP_LOG: sleepLog,
-      CURL_MODE: mode,
-      GITHUB_OUTPUT: outputPath,
-      RENDER_SERVICE_URL: serviceUrl,
-    },
+    env,
     timeout: 30_000,
   });
 
@@ -83,6 +92,28 @@ printf '%s\\n' "$*" >> "$SLEEP_LOG"
     outputs: readLines(outputPath),
   };
 }
+
+test("fails with a clear error when RENDER_SERVICE_URL is missing", () => {
+  const { result, requestedEndpoints, sleeps } = runSmokeCheck("success", {
+    serviceUrl: null,
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /Set the non-secret RENDER_SERVICE_URL/);
+  assert.deepEqual(requestedEndpoints, []);
+  assert.deepEqual(sleeps, []);
+});
+
+test("rejects an HTTP service URL before making any curl calls", () => {
+  const { result, requestedEndpoints, sleeps } = runSmokeCheck("success", {
+    serviceUrl: "http://render.example.test",
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /RENDER_SERVICE_URL must be an HTTPS base URL/);
+  assert.deepEqual(requestedEndpoints, []);
+  assert.deepEqual(sleeps, []);
+});
 
 test("succeeds when the homepage and health endpoint are healthy", () => {
   const { result, requestedEndpoints, sleeps } = runSmokeCheck("success");
