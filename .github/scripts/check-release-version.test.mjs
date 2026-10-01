@@ -167,6 +167,53 @@ test("checks stable releases across all paginated GitHub release pages", () => {
   assert.match(upgrade.stdout, /newer than the latest stable release v1\.10\.0/);
 });
 
+test("fails closed on malformed GitHub release page structures", () => {
+  const invalidResponses = [
+    {
+      pages: { releases: [[{ tag_name: "v2.0.0", prerelease: false }]] },
+      error: /must return an array of pages/,
+    },
+    {
+      pages: [[{ tag_name: "v2.0.0", prerelease: false }], null],
+      error: /returned an invalid page/,
+    },
+    {
+      pages: [[{ tag_name: "v2.0.0", prerelease: false }], { releases: [] }],
+      error: /returned an invalid page/,
+    },
+  ];
+
+  for (const { pages, error } of invalidResponses) {
+    const result = runReleaseCheck("v1.9.9", { pages });
+
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, error);
+    assert.equal(result.stdout, "");
+  }
+});
+
+test("fails closed when GitHub release entries are missing required metadata", () => {
+  const invalidReleases = [
+    { tag_name: "v2.0.0" },
+    { prerelease: false },
+    { tag_name: "v2.0.0", prerelease: "false" },
+    { tag_name: 2, prerelease: false },
+  ];
+
+  for (const invalidRelease of invalidReleases) {
+    const result = runReleaseCheck("v1.9.9", {
+      pages: [
+        [{ tag_name: "v2.0.0", prerelease: false }],
+        [invalidRelease],
+      ],
+    });
+
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, /returned an invalid release/);
+    assert.equal(result.stdout, "");
+  }
+});
+
 test("fails the release check when the GitHub release lookup fails", () => {
   const result = runReleaseCheck("v1.0.0", {
     pages: [],
