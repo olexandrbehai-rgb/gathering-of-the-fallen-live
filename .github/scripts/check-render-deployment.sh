@@ -18,22 +18,28 @@ max_attempts=30
 
 for attempt in $(seq 1 "$max_attempts"); do
   all_healthy=true
-  failed_endpoints=()
+  failed_endpoint_details=()
 
   for index in "${!endpoints[@]}"; do
-    if curl \
+    status_code=""
+    if status_code=$(curl \
       --fail \
       --location \
       --silent \
       --show-error \
       --max-time 15 \
       --output /dev/null \
-      "${endpoints[$index]}"; then
+      --write-out '%{http_code}' \
+      "${endpoints[$index]}"); then
       echo "Attempt $attempt/$max_attempts: ${endpoint_names[$index]} returned success."
     else
-      echo "Attempt $attempt/$max_attempts: ${endpoint_names[$index]} is not ready."
+      status_detail="transport failure"
+      if [[ "$status_code" =~ ^[45][0-9]{2}$ ]]; then
+        status_detail="HTTP $status_code"
+      fi
+      echo "Attempt $attempt/$max_attempts: ${endpoint_names[$index]} is not ready ($status_detail)."
       all_healthy=false
-      failed_endpoints+=("${endpoint_names[$index]}")
+      failed_endpoint_details+=("${endpoint_names[$index]}: $status_detail")
     fi
   done
 
@@ -48,8 +54,8 @@ for attempt in $(seq 1 "$max_attempts"); do
 done
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-  failed_endpoint_list=$(IFS=,; echo "${failed_endpoints[*]}")
-  printf 'failed_endpoints=%s\n' "$failed_endpoint_list" >> "$GITHUB_OUTPUT"
+  failed_endpoint_detail_list=$(IFS=,; echo "${failed_endpoint_details[*]}")
+  printf 'failed_endpoint_details=%s\n' "$failed_endpoint_detail_list" >> "$GITHUB_OUTPUT"
 fi
 
 echo "::error::Render homepage and health endpoint did not both return success after $max_attempts attempts."

@@ -70,7 +70,7 @@ function stepRuns(step, smokeTestResult) {
 
 async function runWorkflowStep(
   step,
-  { issueList = [], failedEndpoints = "" } = {},
+  { issueList = [], failedEndpointDetails = "" } = {},
 ) {
   const calls = [];
   const github = {
@@ -106,7 +106,9 @@ async function runWorkflowStep(
     sha: "abc123",
   };
   const core = { info: (message) => calls.push({ method: "info", message }) };
-  const process = { env: { FAILED_ENDPOINTS: failedEndpoints } };
+  const process = {
+    env: { FAILED_ENDPOINT_DETAILS: failedEndpointDetails },
+  };
   await new AsyncFunction("github", "context", "core", "process", step.script)(
     github,
     context,
@@ -137,12 +139,35 @@ set -euo pipefail
 url="\${!#}"
 printf '%s\\n' "$url" >> "$CURL_LOG"
 call_count=$(wc -l < "$CURL_LOG")
-if [[ "$CURL_MODE" == "exhausted" ]] ||
-  { [[ "$CURL_MODE" == "homepage-exhausted" ]] && [[ "$url" == */ ]]; } ||
-  { [[ "$CURL_MODE" == "health-exhausted" ]] && [[ "$url" == */api/healthz ]]; } ||
-  { [[ "$CURL_MODE" == "retry" ]] && [[ "$call_count" -eq 2 ]]; }; then
-  exit 22
+status_code=200
+exit_code=0
+if [[ "$CURL_MODE" == "exhausted" ]]; then
+  status_code=503
+  exit_code=22
+elif [[ "$CURL_MODE" == "changing-status" ]]; then
+  if [[ "$call_count" -eq 59 ]]; then
+    status_code=502
+  elif [[ "$call_count" -eq 60 ]]; then
+    status_code=504
+  else
+    status_code=503
+  fi
+  exit_code=22
+elif [[ "$CURL_MODE" == "homepage-exhausted" ]] && [[ "$url" == */ ]]; then
+  status_code=503
+  exit_code=22
+elif [[ "$CURL_MODE" == "health-exhausted" ]] && [[ "$url" == */api/healthz ]]; then
+  status_code=502
+  exit_code=22
+elif [[ "$CURL_MODE" == "transport-exhausted" ]]; then
+  status_code=000
+  exit_code=7
+elif [[ "$CURL_MODE" == "retry" ]] && [[ "$call_count" -eq 2 ]]; then
+  status_code=503
+  exit_code=22
 fi
+printf '%s' "$status_code"
+exit "$exit_code"
 `,
   );
   writeFileSync(
@@ -258,45 +283,68 @@ test("fails after exhausting retries and continues checking both endpoints", () 
   );
   assert.equal(sleeps.length, 29);
   assert.match(result.stdout, /did not both return success after 30 attempts/);
-  assert.deepEqual(outputs, ["failed_endpoints=homepage,health endpoint"]);
+  assert.deepEqual(outputs, [
+    "failed_endpoint_details=homepage: HTTP 503,health endpoint: HTTP 503",
+  ]);
 });
 
-test("reports only the homepage when it remains unavailable after retries", () => {
+test("reports the final HTTP status for only the homepage when it remains unavailable", () => {
   const { result, outputs } = runSmokeCheck("homepage-exhausted");
 
   assert.equal(result.status, 1);
-  assert.deepEqual(outputs, ["failed_endpoints=homepage"]);
+  assert.deepEqual(outputs, ["failed_endpoint_details=homepage: HTTP 503"]);
 });
 
-test("reports only the health endpoint when it remains unavailable after retries", () => {
+test("reports the final HTTP status for only the health endpoint when it remains unavailable", () => {
   const { result, outputs } = runSmokeCheck("health-exhausted");
 
   assert.equal(result.status, 1);
-  assert.deepEqual(outputs, ["failed_endpoints=health endpoint"]);
+  assert.deepEqual(outputs, ["failed_endpoint_details=health endpoint: HTTP 502"]);
+});
+
+test("reports transport failures without exposing endpoint URLs", () => {
+  const { result, outputs } = runSmokeCheck("transport-exhausted");
+
+  assert.equal(result.status, 1);
+  assert.deepEqual(outputs, [
+    "failed_endpoint_details=homepage: transport failure,health endpoint: transport failure",
+  ]);
+  assert.equal(outputs.join("\n").includes(serviceUrl), false);
+});
+
+test("records each endpoint's status from the final retry attempt", () => {
+  const { result, outputs } = runSmokeCheck("changing-status");
+
+  assert.equal(result.status, 1);
+  assert.deepEqual(outputs, [
+    "failed_endpoint_details=homepage: HTTP 502,health endpoint: HTTP 504",
+  ]);
 });
 
 test("opens a Render outage issue when a failed check has no matching open issue", async () => {
   const step = getWorkflowStep(failureStepName);
   const calls = await runWorkflowStep(step, {
-    failedEndpoints: "homepage,health endpoint",
+    failedEndpointDetails: "homepage: HTTP 503,health endpoint: HTTP 502",
   });
 
   assert.equal(stepRuns(step, "failure"), true);
   assert.deepEqual(
     calls.map(({ method }) => method),
-    ["listForRepo", "create", "info"],
+    ["paginate", "create", "info"],
   );
   assert.deepEqual(calls[1].options, {
     owner: "example",
     repo: "service",
     title: outageTitle,
     body: [
-      "The Render deployment availability check failed. Endpoints still failing after retries: homepage, health endpoint",
+      "The Render deployment availability check failed. Endpoints still failing after retries: homepage (HTTP 503), health endpoint (HTTP 502)",
       "",
       "Workflow run: https://github.com/example/service/actions/runs/123",
       "Commit: abc123",
     ].join("\n"),
   });
+  assert.equal(calls[1].options.body.includes(serviceUrl), false);
+  assert.equal(calls[1].options.body.includes("credential"), false);
 });
 
 test("comments on the existing outage issue when a failed check repeats", async () => {
@@ -310,17 +358,30 @@ test("comments on the existing outage issue when a failed check repeats", async 
         pull_request: { url: "https://example.test/pr" },
       },
     ],
-    failedEndpoints: "health endpoint",
+    failedEndpointDetails: "health endpoint: transport failure",
   });
 
   assert.equal(stepRuns(step, "failure"), true);
   assert.deepEqual(
     calls.map(({ method }) => method),
-    ["listForRepo", "createComment", "info"],
+    ["paginate", "createComment", "info"],
   );
   assert.equal(calls[1].options.issue_number, 18);
-  assert.match(calls[1].options.body, /health endpoint/);
+  assert.match(calls[1].options.body, /health endpoint \(transport failure\)/);
   assert.equal(calls[1].options.body.includes("Workflow run:"), true);
+});
+
+test("ignores unsafe endpoint details before writing an outage issue", async () => {
+  const step = getWorkflowStep(failureStepName);
+  const calls = await runWorkflowStep(step, {
+    failedEndpointDetails:
+      `homepage: HTTP 503,health endpoint: transport failure,${serviceUrl}: credential`,
+  });
+  const body = calls.find(({ method }) => method === "create").options.body;
+
+  assert.match(body, /homepage \(HTTP 503\), health endpoint \(transport failure\)/);
+  assert.equal(body.includes(serviceUrl), false);
+  assert.equal(body.includes("credential"), false);
 });
 
 test("comments on and closes the matching outage issue after recovery", async () => {
