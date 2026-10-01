@@ -335,7 +335,8 @@ router.patch(
       (current.status === "approved" &&
         (nextStatus === "played" ||
           nextStatus === "skipped" ||
-          nextStatus === "rejected"));
+          nextStatus === "rejected")) ||
+      (current.status === "played" && nextStatus === "approved");
     if (!allowed) {
       res.status(400).json({ error: "This status change is not allowed." });
       return;

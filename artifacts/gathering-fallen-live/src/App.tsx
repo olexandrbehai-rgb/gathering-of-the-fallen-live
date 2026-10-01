@@ -20,6 +20,7 @@ import {
   Pause,
   Play,
   Radio,
+  RotateCcw,
   Send,
   ShieldCheck,
   SkipForward,
@@ -90,7 +91,7 @@ const copy: Record<Language, Copy> = {
     hostTitle: 'Host desk', hostBody: 'Review the room once. Then let the queue move itself.',
     pending: 'Pending', approved: 'Approved', played: 'Played', waiting: 'Waiting', rejected: 'Rejected', skipped: 'Skipped',
     selectSession: 'Select a session', noAdminSessions: 'No hosted sessions found.', queue: 'Queue', all: 'All',
-    review: 'Review', approve: 'Approve', reject: 'Reject', markPlayed: 'Mark played', skip: 'Skip',
+    review: 'Review', approve: 'Approve', reject: 'Reject', markPlayed: 'Mark played', skip: 'Skip', undoPlayed: 'Return to queue',
     play: 'Play', pause: 'Pause', next: 'Next', nowPlaying: 'Now playing', upcoming: 'Up next',
     trackOf: 'Track', hostGuide: 'Host guide', guide1: 'Read the intro', guide2: 'Press play', guide3: 'Move next',
     guide4: 'Mark played', guideBody1: 'Take a quick look at the artist and the blurb.',
@@ -141,7 +142,7 @@ const copy: Record<Language, Copy> = {
     hostTitle: 'Régie', hostBody: 'Vérifiez la salle une fois. Ensuite, laissez la file avancer.',
     pending: 'En attente', approved: 'Approuvée', played: 'Passée', waiting: 'En attente', rejected: 'Refusée', skipped: 'Passée',
     selectSession: 'Choisir une session', noAdminSessions: 'Aucune session hébergée.', queue: 'File', all: 'Toutes',
-    review: 'Vérifier', approve: 'Approuver', reject: 'Refuser', markPlayed: 'Marquer passée', skip: 'Passer',
+    review: 'Vérifier', approve: 'Approuver', reject: 'Refuser', markPlayed: 'Marquer passée', skip: 'Passer', undoPlayed: 'Remettre dans la file',
     play: 'Lire', pause: 'Pause', next: 'Suivante', nowPlaying: 'En lecture', upcoming: 'À suivre',
     trackOf: 'Piste', hostGuide: 'Guide régie', guide1: 'Lire l’intro', guide2: 'Appuyer sur lecture', guide3: 'Passer à la suivante',
     guide4: 'Marquer passée', guideBody1: 'Jetez un œil à l’artiste et au texte.', guideBody2: 'Lancez la piste en direct.',
@@ -192,7 +193,7 @@ const copy: Record<Language, Copy> = {
     hostTitle: 'Пульт ведучого', hostBody: 'Перевірте кімнату один раз. Далі черга рухається сама.',
     pending: 'Очікує', approved: 'Схвалено', played: 'Програно', waiting: 'Очікує', rejected: 'Відхилено', skipped: 'Пропущено',
     selectSession: 'Оберіть сесію', noAdminSessions: 'Керованих сесій немає.', queue: 'Черга', all: 'Усі',
-    review: 'Перегляд', approve: 'Схвалити', reject: 'Відхилити', markPlayed: 'Позначити програним', skip: 'Пропустити',
+    review: 'Перегляд', approve: 'Схвалити', reject: 'Відхилити', markPlayed: 'Позначити програним', skip: 'Пропустити', undoPlayed: 'Повернути в чергу',
     play: 'Відтворити', pause: 'Пауза', next: 'Наступний', nowPlaying: 'Зараз грає', upcoming: 'Далі',
     trackOf: 'Трек', hostGuide: 'Підказки ведучому', guide1: 'Прочитайте вступ', guide2: 'Натисніть play', guide3: 'Перейдіть далі',
     guide4: 'Позначте програним', guideBody1: 'Швидко перегляньте артиста і текст.', guideBody2: 'Запустіть трек в ефірі.',
@@ -453,7 +454,41 @@ function AdminPage() {
 }
 
 function AdminQueueRow({ item, t, onStatus, pending }: { item: AdminQueueSubmission; t: (key: string) => string; onStatus: (id: string, status: 'approved' | 'rejected' | 'played' | 'skipped') => void; pending: boolean }) {
-  return <article className="grid gap-4 px-4 py-5 sm:grid-cols-[44px_1fr_auto] sm:items-center sm:px-6" data-testid={`row-admin-submission-${item.id}`}><div className="font-mono-ui text-sm text-primary">#{String(item.queueNumber).padStart(2, '0')}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-foreground">{item.songTitle}</h3><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${item.status === 'approved' ? 'border-primary/50 text-primary' : item.status === 'played' ? 'border-chart-3/50 text-chart-3' : item.status === 'rejected' || item.status === 'skipped' ? 'border-destructive/50 text-destructive' : 'border-chart-4/50 text-chart-4'}`}>{statusLabel(item.status, t)}</span></div><p className="mt-1 text-sm text-muted-foreground">{item.artistName} · {item.genre} · {item.country}</p><p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.intro}</p><div className="mt-3 flex flex-wrap gap-2">{item.trackUrl && <a href={item.trackUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-primary hover:text-accent" data-testid={`link-admin-track-${item.id}`}><ExternalLink className="size-3" />{t('openLink')}</a>}{item.socialUrl && <a href={item.socialUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground" data-testid={`link-admin-social-${item.id}`}><Link2 className="size-3" />{t('social')}</a>}</div></div><div className="flex flex-wrap gap-2 sm:justify-end">{item.status === 'pending' && <><button type="button" disabled={pending} onClick={() => onStatus(item.id, 'approved')} className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-primary-foreground disabled:opacity-50" data-testid={`button-approve-${item.id}`}><Check className="size-3" />{t('approve')}</button><button type="button" disabled={pending} onClick={() => onStatus(item.id, 'rejected')} className="inline-flex items-center gap-1 rounded-md border border-destructive/50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-destructive disabled:opacity-50" data-testid={`button-reject-${item.id}`}><X className="size-3" />{t('reject')}</button></>}{item.status === 'approved' && <><button type="button" disabled={pending} onClick={() => onStatus(item.id, 'played')} className="inline-flex items-center gap-1 rounded-md bg-chart-3/15 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-chart-3 disabled:opacity-50" data-testid={`button-played-${item.id}`}><Check className="size-3" />{t('markPlayed')}</button><button type="button" disabled={pending} onClick={() => onStatus(item.id, 'skipped')} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground disabled:opacity-50" data-testid={`button-skip-${item.id}`}><SkipForward className="size-3" />{t('skip')}</button></>}{item.status === 'played' && <span className="inline-flex items-center gap-1 text-xs text-chart-3"><CheckCircle2 className="size-4" />{t('played')}</span>}</div></article>;
+  return (
+    <article className="grid gap-4 px-4 py-5 sm:grid-cols-[44px_1fr_auto] sm:items-center sm:px-6" data-testid={`row-admin-submission-${item.id}`}>
+      <div className="font-mono-ui text-sm text-primary">#{String(item.queueNumber).padStart(2, '0')}</div>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-semibold text-foreground">{item.songTitle}</h3>
+          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${item.status === 'approved' ? 'border-primary/50 text-primary' : item.status === 'played' ? 'border-chart-3/50 text-chart-3' : item.status === 'rejected' || item.status === 'skipped' ? 'border-destructive/50 text-destructive' : 'border-chart-4/50 text-chart-4'}`}>
+            {statusLabel(item.status, t)}
+          </span>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">{item.artistName} · {item.genre} · {item.country}</p>
+        <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.intro}</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {item.trackUrl && <a href={item.trackUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-primary hover:text-accent" data-testid={`link-admin-track-${item.id}`}><ExternalLink className="size-3" />{t('openLink')}</a>}
+          {item.socialUrl && <a href={item.socialUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground" data-testid={`link-admin-social-${item.id}`}><Link2 className="size-3" />{t('social')}</a>}
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2 sm:justify-end">
+        {item.status === 'pending' && <>
+          <button type="button" disabled={pending} onClick={() => onStatus(item.id, 'approved')} className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-primary-foreground disabled:opacity-50" data-testid={`button-approve-${item.id}`}><Check className="size-3" />{t('approve')}</button>
+          <button type="button" disabled={pending} onClick={() => onStatus(item.id, 'rejected')} className="inline-flex items-center gap-1 rounded-md border border-destructive/50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-destructive disabled:opacity-50" data-testid={`button-reject-${item.id}`}><X className="size-3" />{t('reject')}</button>
+        </>}
+        {item.status === 'approved' && <>
+          <button type="button" disabled={pending} onClick={() => onStatus(item.id, 'played')} className="inline-flex items-center gap-1 rounded-md bg-chart-3/15 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-chart-3 disabled:opacity-50" data-testid={`button-played-${item.id}`}><Check className="size-3" />{t('markPlayed')}</button>
+          <button type="button" disabled={pending} onClick={() => onStatus(item.id, 'skipped')} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground disabled:opacity-50" data-testid={`button-skip-${item.id}`}><SkipForward className="size-3" />{t('skip')}</button>
+        </>}
+        {item.status === 'played' && <>
+          <button type="button" disabled={pending} onClick={() => onStatus(item.id, 'approved')} className="inline-flex items-center gap-1 rounded-md border border-primary/50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-primary/10 disabled:opacity-50" data-testid={`button-undo-played-${item.id}`}>
+            <RotateCcw className="size-3" />{t('undoPlayed')}
+          </button>
+          <span className="inline-flex items-center gap-1 text-xs text-chart-3"><CheckCircle2 className="size-4" />{t('played')}</span>
+        </>}
+      </div>
+    </article>
+  );
 }
 
 function LivePage({ sessionId }: { sessionId: string }) {

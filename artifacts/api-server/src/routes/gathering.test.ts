@@ -362,6 +362,7 @@ for (const [startingStatus, nextStatus] of [
   ["pending", "rejected"],
   ["approved", "played"],
   ["approved", "skipped"],
+  ["played", "approved"],
 ] as const) {
   test(`an authenticated host can move ${startingStatus} tracks to ${nextStatus} and read the refreshed queue`, async () => {
     const database = new FixtureDatabase(
