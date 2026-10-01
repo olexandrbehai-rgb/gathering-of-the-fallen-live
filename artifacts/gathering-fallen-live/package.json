@@ -7,6 +7,7 @@
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
+    "test": "tsx --test src/lib/submission-workflow.test.ts ../../artifacts/api-server/src/lib/session-schedule.test.ts ../../artifacts/api-server/src/routes/gathering.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
