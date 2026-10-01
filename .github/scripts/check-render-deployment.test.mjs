@@ -68,6 +68,23 @@ function stepRuns(step, smokeTestResult) {
   return new Function(`return (${expression});`)();
 }
 
+function alertJobRuns(smokeTestResult) {
+  const workflow = readFileSync(workflowPath, "utf8");
+  const jobStart = workflow.indexOf("  alert-maintainers:\n");
+  assert.notEqual(jobStart, -1, "Alert job should exist");
+  const condition = workflow
+    .slice(jobStart)
+    .match(/^    if: (.+)$/m)?.[1];
+  assert.ok(condition, "Alert job should have an explicit result condition");
+  const expression = condition
+    .replace(/\balways\(\)/g, "true")
+    .replace(
+      /needs\.smoke-test\.result/g,
+      JSON.stringify(smokeTestResult),
+    );
+  return new Function(`return (${expression});`)();
+}
+
 async function runWorkflowStep(
   step,
   { issueList = [], failedEndpointDetails = "" } = {},
@@ -460,6 +477,29 @@ test("a successful check skips the failure alert and runs only recovery handling
     recoveryCalls.map(({ method }) => method),
     ["paginate", "info"],
   );
+});
+
+test("canceled and skipped checks run neither outage alert nor recovery action", async () => {
+  const failureStep = getWorkflowStep(failureStepName);
+  const recoveryStep = getWorkflowStep(recoveryStepName);
+
+  for (const result of ["cancelled", "skipped"]) {
+    const alertJobRunsForResult = alertJobRuns(result);
+    const failureCalls =
+      alertJobRunsForResult && stepRuns(failureStep, result)
+        ? await runWorkflowStep(failureStep)
+        : [];
+    const recoveryCalls =
+      alertJobRunsForResult && stepRuns(recoveryStep, result)
+        ? await runWorkflowStep(recoveryStep)
+        : [];
+
+    assert.equal(alertJobRunsForResult, false, `${result}: alert job`);
+    assert.equal(stepRuns(failureStep, result), false, `${result}: failure alert`);
+    assert.equal(stepRuns(recoveryStep, result), false, `${result}: recovery`);
+    assert.deepEqual(failureCalls, [], `${result}: failure alert calls`);
+    assert.deepEqual(recoveryCalls, [], `${result}: recovery action calls`);
+  }
 });
 
 test("serializes push and manual checks through the incident update", () => {
