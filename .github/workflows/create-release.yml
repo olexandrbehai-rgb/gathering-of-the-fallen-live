@@ -8,6 +8,14 @@ on:
 permissions:
   contents: write
 
+# Serialize the release check through publication so each run checks the releases
+# created by the previous active run. GitHub keeps one pending run per group;
+# a newer run replaces that pending run (but does not cancel the active run).
+# If a tag's run is replaced, rerun it after the queued release finishes.
+concurrency:
+  group: stable-release-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Validate and publish release
