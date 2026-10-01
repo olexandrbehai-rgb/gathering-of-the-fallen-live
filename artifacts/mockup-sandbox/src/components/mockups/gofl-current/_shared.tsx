@@ -27,9 +27,9 @@ export type GoFLQueueItem = {
 };
 
 export const sessionFixture: GoFLSession[] = [
-  { id: 'session-01', sessionType: 'artist_spotlight', startsAt: '2026-06-20T23:00:00-04:00', capacity: 24, registered: 17, available: 7, isOpen: true },
-  { id: 'session-02', sessionType: 'genre_showcase', startsAt: '2026-06-27T22:00:00-04:00', capacity: 20, registered: 12, available: 8, isOpen: true },
-  { id: 'session-03', sessionType: 'weekend_takeover', startsAt: '2026-07-04T23:30:00-04:00', capacity: 18, registered: 18, available: 0, isOpen: true },
+  { id: 'session-01', sessionType: 'artist_spotlight', startsAt: '2026-10-10T23:00:00-04:00', capacity: 24, registered: 17, available: 7, isOpen: true },
+  { id: 'session-02', sessionType: 'genre_showcase', startsAt: '2026-10-17T22:00:00-04:00', capacity: 20, registered: 12, available: 8, isOpen: true },
+  { id: 'session-03', sessionType: 'weekend_takeover', startsAt: '2026-10-24T23:30:00-04:00', capacity: 18, registered: 18, available: 0, isOpen: true },
 ];
 
 export const queueFixture: GoFLQueueItem[] = [
@@ -54,7 +54,6 @@ export const t = (key: string) => ({
   genre: 'Genre', country: 'Country / region', social: 'Social link', track: 'Track link',
   trackHint: 'Spotify, SoundCloud, YouTube, Bandcamp, or another playable link.',
   chooseSession: 'Choose a live session', rights: 'I confirm I own or control the rights to this track and allow it to be played in the livestream.',
-  social: 'Social link',
   sendTrack: 'Submit track', submitting: 'Sending into the room…', required: 'Required', optional: 'Optional',
   receiptTitle: 'You are in the room.', receiptBody: 'Keep this receipt. The host will review the queue before going live.',
   queueNumber: 'Queue number', status: 'Status', submitted: 'Submitted', returnHome: 'Back to home',
@@ -155,7 +154,7 @@ export function SessionCard({ session, onJoin }: { session: GoFLSession; onJoin?
   </article>;
 }
 
-export function QueuePreview({ items = queueFixture }: { items?: GoFLQueueItem[] }) {
+export function QueuePreview({ items = queueFixture.filter((item) => item.status === 'approved') }: { items?: GoFLQueueItem[] }) {
   return <section className="glass-panel rounded-xl border border-border/80 p-5" data-testid="section-queue-preview"><div className="flex items-center justify-between"><div><p className="font-mono-ui text-[10px] uppercase tracking-[.23em] text-primary">Queue preview</p><h2 className="mt-2 font-display text-xl">{t('nextSession')}</h2></div><Radio className="size-5 text-accent" /></div>{items.length === 0 ? <div className="mt-5 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{t('emptyQueue')}</div> : <div className="mt-5 divide-y divide-border/70">{items.slice(0, 5).map((item) => <div className="flex items-center gap-3 py-3 first:pt-0 last:pb-0" key={`${item.queueNumber}-${item.songTitle}`}><span className="w-6 font-mono-ui text-xs text-primary">0{item.queueNumber}</span><span className="grid size-8 place-items-center rounded-full border border-border bg-secondary/60 text-xs text-muted-foreground"><Headphones className="size-3.5" /></span><span className="min-w-0 flex-1"><strong className="block truncate text-sm text-foreground">{item.songTitle}</strong><span className="block truncate text-xs text-muted-foreground">{item.artistName}</span></span><span className="rounded-full border border-border px-2 py-1 text-[10px] text-muted-foreground">{item.genre}</span></div>)}</div>}</section>;
 }
 

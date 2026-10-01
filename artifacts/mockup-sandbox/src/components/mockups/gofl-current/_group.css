@@ -1,6 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 .gofl-current {
+  --button-outline: rgba(255, 255, 255, 0.1);
+  --badge-outline: rgba(255, 255, 255, 0.05);
+  --opaque-button-border-intensity: 9;
+  --card-border: 234 36% 24%;
+  --popover-border: 234 36% 24%;
   --background: 229 42% 5%;
   --foreground: 235 32% 92%;
   --border: 231 32% 19%;
@@ -42,6 +47,22 @@
   --radius: 0.75rem;
   --elevate-1: rgba(255, 255, 255, 0.04);
   --elevate-2: rgba(255, 255, 255, 0.09);
+  --spacing: 0.25rem;
+  --primary-border: hsl(267 89% 77%);
+  --secondary-border: hsl(233 35% 25%);
+  --muted-border: hsl(232 28% 22%);
+  --accent-border: hsl(326 89% 74%);
+  --destructive-border: hsl(350 78% 66%);
+  --sidebar-primary-border: hsl(267 89% 77%);
+  --sidebar-accent-border: hsl(234 35% 24%);
+  --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-sm: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0), 0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0), 0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-md: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0), 0px 2px 4px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-lg: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0), 0px 4px 6px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0), 0px 8px 10px -1px hsl(202.8169 89.1213% 53.1373% / 0);
+  --shadow-2xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
   position: relative;
   isolation: isolate;
   min-width: 320px;
@@ -88,6 +109,49 @@
 .gofl-current .animate-rise { animation: gofl-rise-in .6s ease both; }
 .gofl-current .animate-live { animation: gofl-pulse-live 2.2s ease-in-out infinite; }
 .gofl-current ::selection { background: hsl(326 89% 65% / .35); color: hsl(0 0% 100%); }
+.gofl-current input[type='search']::-webkit-search-cancel-button { display: none; }
+.gofl-current [contenteditable][data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+}
+.gofl-current .toggle-elevate::before,
+.gofl-current .toggle-elevate-2::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: -1;
+}
+.gofl-current .toggle-elevate.toggle-elevated::before { background-color: var(--elevate-2); }
+.gofl-current .border.toggle-elevate::before { inset: -1px; }
+.gofl-current .hover-elevate:not(.no-default-hover-elevate),
+.gofl-current .active-elevate:not(.no-default-active-elevate),
+.gofl-current .hover-elevate-2:not(.no-default-hover-elevate),
+.gofl-current .active-elevate-2:not(.no-default-active-elevate) {
+  position: relative;
+  z-index: 0;
+}
+.gofl-current .hover-elevate:not(.no-default-hover-elevate)::after,
+.gofl-current .active-elevate:not(.no-default-active-elevate)::after,
+.gofl-current .hover-elevate-2:not(.no-default-hover-elevate)::after,
+.gofl-current .active-elevate-2:not(.no-default-active-elevate)::after {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: 999;
+}
+.gofl-current .hover-elevate:hover:not(.no-default-hover-elevate)::after,
+.gofl-current .active-elevate:active:not(.no-default-active-elevate)::after { background-color: var(--elevate-1); }
+.gofl-current .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
+.gofl-current .active-elevate-2:active:not(.no-default-active-elevate)::after { background-color: var(--elevate-2); }
+.gofl-current .border.hover-elevate::after,
+.gofl-current .border.active-elevate::after,
+.gofl-current .border.hover-elevate-2::after,
+.gofl-current .border.active-elevate-2::after { inset: -1px; }
 .gofl-current button,
 .gofl-current a,
 .gofl-current input,
