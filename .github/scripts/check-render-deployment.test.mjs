@@ -182,6 +182,15 @@ elif [[ "$CURL_MODE" == "transport-exhausted" ]]; then
 elif [[ "$CURL_MODE" == "retry" ]] && [[ "$call_count" -eq 2 ]]; then
   status_code=503
   exit_code=22
+elif [[ "$CURL_MODE" == "custom-status" ]]; then
+  if [[ "$url" == */api/healthz ]]; then
+    status_code="$CURL_HEALTH_STATUS"
+  else
+    status_code="$CURL_HOMEPAGE_STATUS"
+  fi
+  if [[ "$status_code" -ge 400 ]]; then
+    exit_code=22
+  fi
 fi
 printf '%s' "$status_code"
 exit "$exit_code"
@@ -202,6 +211,8 @@ printf '%s\\n' "$*" >> "$SLEEP_LOG"
     CURL_LOG: curlLog,
     SLEEP_LOG: sleepLog,
     CURL_MODE: mode,
+    CURL_HOMEPAGE_STATUS: String(options.statusCodes?.homepage ?? 200),
+    CURL_HEALTH_STATUS: String(options.statusCodes?.health ?? 200),
     GITHUB_OUTPUT: outputPath,
   };
   if (configuredServiceUrl === null) {
@@ -283,6 +294,41 @@ test("succeeds when the homepage and health endpoint are healthy", () => {
   assert.deepEqual(requestedEndpoints, expectedEndpoints);
   assert.deepEqual(sleeps, []);
   assert.match(result.stdout, /responding successfully/);
+});
+
+test("accepts the documented HTTP 200 response from both endpoints", () => {
+  const { result, requestedEndpoints, sleeps } = runSmokeCheck("custom-status", {
+    statusCodes: { homepage: 200, health: 200 },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(requestedEndpoints, expectedEndpoints);
+  assert.deepEqual(sleeps, []);
+});
+
+test("rejects unexpected homepage and health endpoint HTTP status codes", () => {
+  for (const statusCode of [101, 204, 302, 404, 503]) {
+    for (const endpoint of ["homepage", "health"]) {
+      const { result, outputs } = runSmokeCheck("custom-status", {
+        statusCodes: {
+          homepage: endpoint === "homepage" ? statusCode : 200,
+          health: endpoint === "health" ? statusCode : 200,
+        },
+      });
+
+      const endpointName =
+        endpoint === "homepage" ? "homepage" : "health endpoint";
+      assert.equal(result.status, 1, `${endpointName}: HTTP ${statusCode}`);
+      assert.deepEqual(outputs, [
+        `failed_endpoint_details=${endpointName}: HTTP ${statusCode}`,
+      ]);
+      assert.ok(
+        result.stdout.includes(
+          `${endpointName} is not ready (HTTP ${statusCode})`,
+        ),
+      );
+    }
+  }
 });
 
 test("retries both endpoints when either endpoint is not ready", () => {

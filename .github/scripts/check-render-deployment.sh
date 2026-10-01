@@ -26,6 +26,8 @@ fi
 base_url="${RENDER_SERVICE_URL%/}"
 endpoints=("$base_url/" "$base_url/api/healthz")
 endpoint_names=("homepage" "health endpoint")
+# Both endpoints must return HTTP 200 after curl follows any redirects.
+healthy_status_codes=("200" "200")
 max_attempts=30
 
 for attempt in $(seq 1 "$max_attempts"); do
@@ -34,7 +36,8 @@ for attempt in $(seq 1 "$max_attempts"); do
 
   for index in "${!endpoints[@]}"; do
     status_code=""
-    if status_code=$(curl \
+    curl_succeeded=true
+    if ! status_code=$(curl \
       --fail \
       --location \
       --silent \
@@ -43,10 +46,15 @@ for attempt in $(seq 1 "$max_attempts"); do
       --output /dev/null \
       --write-out '%{http_code}' \
       "${endpoints[$index]}"); then
+      curl_succeeded=false
+    fi
+
+    if [[ "$curl_succeeded" == true ]] &&
+      [[ "$status_code" == "${healthy_status_codes[$index]}" ]]; then
       echo "Attempt $attempt/$max_attempts: ${endpoint_names[$index]} returned success."
     else
       status_detail="transport failure"
-      if [[ "$status_code" =~ ^[45][0-9]{2}$ ]]; then
+      if [[ "$status_code" =~ ^[1-5][0-9]{2}$ ]]; then
         status_detail="HTTP $status_code"
       fi
       echo "Attempt $attempt/$max_attempts: ${endpoint_names[$index]} is not ready ($status_detail)."
