@@ -6,6 +6,12 @@ on:
       - main
   workflow_dispatch:
 
+# Run the smoke check and its incident update as one serialized operation.
+# Keep active checks running so newer push/manual runs cannot interrupt alerting.
+concurrency:
+  group: render-deployment-availability-${{ github.repository }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 

@@ -461,3 +461,15 @@ test("a successful check skips the failure alert and runs only recovery handling
     ["paginate", "info"],
   );
 });
+
+test("serializes push and manual checks through the incident update", () => {
+  const workflow = readFileSync(workflowPath, "utf8");
+
+  assert.match(workflow, /^on:\n  push:\n/m);
+  assert.match(workflow, /^  workflow_dispatch:\n/m);
+  assert.match(
+    workflow,
+    /^concurrency:\n  group: render-deployment-availability-\$\{\{ github\.repository \}\}$/m,
+  );
+  assert.match(workflow, /^  cancel-in-progress: false$/m);
+});
