@@ -23,6 +23,7 @@ import { Router, type IRouter } from "express";
 import { requireAuth } from "../middlewares/requireAuth";
 import { generateUpcomingSessionInstances } from "../lib/session-schedule";
 
+export function createGatheringRouter(database: typeof db = db): IRouter {
 const router: IRouter = Router();
 
 async function ensureUpcomingSessions(): Promise<void> {
@@ -34,7 +35,7 @@ async function ensureUpcomingSessions(): Promise<void> {
   }));
 
   if (sessions.length > 0) {
-    await db
+    await database
       .insert(sessionsTable)
       .values(sessions)
       .onConflictDoNothing({ target: sessionsTable.startsAt });
@@ -72,7 +73,7 @@ async function registrationCounts(
   sessions: Session[],
 ): Promise<Map<string, number>> {
   if (sessions.length === 0) return new Map();
-  const grouped = await db
+  const grouped = await database
     .select({ sessionId: submissionsTable.sessionId, total: count() })
     .from(submissionsTable)
     .groupBy(submissionsTable.sessionId);
@@ -98,7 +99,7 @@ function isHttpUrl(value: string): boolean {
 
 router.get("/sessions", async (_req, res): Promise<void> => {
   await ensureUpcomingSessions();
-  const sessions = await db
+  const sessions = await database
     .select()
     .from(sessionsTable)
     .where(gt(sessionsTable.startsAt, new Date()))
@@ -121,7 +122,7 @@ router.get(
       return;
     }
 
-    const [session] = await db
+    const [session] = await database
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
       .where(eq(sessionsTable.id, parsedParams.data.sessionId))
@@ -131,7 +132,7 @@ router.get(
       return;
     }
 
-    const rows = await db
+    const rows = await database
       .select({
         queueNumber: submissionsTable.queueNumber,
         artistName: submissionsTable.artistName,
@@ -166,7 +167,7 @@ router.post("/submissions", async (req, res): Promise<void> => {
     return;
   }
 
-  const submission = await db.transaction(async (tx) => {
+  const submission = await database.transaction(async (tx) => {
     const [session] = await tx
       .select()
       .from(sessionsTable)
@@ -234,7 +235,7 @@ router.get(
   async (_req, res): Promise<void> => {
     await ensureUpcomingSessions();
     const now = new Date();
-    const sessions = await db
+    const sessions = await database
       .select()
       .from(sessionsTable)
       // Default to the nearest upcoming session, then include recent history.
@@ -244,7 +245,7 @@ router.get(
       )
       .limit(20);
     const counts = await registrationCounts(sessions);
-    const statusCounts = await db
+    const statusCounts = await database
       .select({
         sessionId: submissionsTable.sessionId,
         status: submissionsTable.status,
@@ -277,7 +278,7 @@ router.get(
       res.status(400).json({ error: parsedParams.error.message });
       return;
     }
-    const [session] = await db
+    const [session] = await database
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
       .where(eq(sessionsTable.id, parsedParams.data.sessionId))
@@ -287,7 +288,7 @@ router.get(
       return;
     }
 
-    const rows = await db
+    const rows = await database
       .select()
       .from(submissionsTable)
       .where(eq(submissionsTable.sessionId, parsedParams.data.sessionId))
@@ -317,7 +318,7 @@ router.patch(
       return;
     }
 
-    const [current] = await db
+    const [current] = await database
       .select()
       .from(submissionsTable)
       .where(eq(submissionsTable.id, parsedParams.data.submissionId))
@@ -340,7 +341,7 @@ router.patch(
       return;
     }
 
-    const [updated] = await db
+    const [updated] = await database
       .update(submissionsTable)
       .set({ status: nextStatus })
       .where(
@@ -364,4 +365,7 @@ router.patch(
   },
 );
 
-export default router;
+return router;
+}
+
+export default createGatheringRouter();
