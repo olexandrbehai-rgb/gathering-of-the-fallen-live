@@ -1,0 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+.gofl-current {
+  --background: 229 42% 5%;
+  --foreground: 235 32% 92%;
+  --border: 231 32% 19%;
+  --input: 232 30% 20%;
+  --ring: 267 89% 68%;
+  --card: 231 39% 9%;
+  --card-foreground: 235 32% 92%;
+  --popover: 231 39% 10%;
+  --popover-foreground: 235 32% 92%;
+  --primary: 267 89% 68%;
+  --primary-foreground: 228 48% 6%;
+  --secondary: 233 35% 16%;
+  --secondary-foreground: 232 32% 90%;
+  --muted: 232 28% 13%;
+  --muted-foreground: 229 18% 64%;
+  --accent: 326 89% 65%;
+  --accent-foreground: 232 39% 7%;
+  --destructive: 350 78% 57%;
+  --destructive-foreground: 232 38% 98%;
+  --chart-1: 267 89% 68%;
+  --chart-2: 326 89% 65%;
+  --chart-3: 198 92% 57%;
+  --chart-4: 45 96% 58%;
+  --chart-5: 350 78% 57%;
+  --sidebar: 231 48% 7%;
+  --sidebar-foreground: 235 32% 92%;
+  --sidebar-primary: 267 89% 68%;
+  --sidebar-primary-foreground: 220 40% 7%;
+  --sidebar-accent: 234 35% 15%;
+  --sidebar-accent-foreground: 235 32% 92%;
+  --sidebar-border: 232 36% 18%;
+  --sidebar-ring: 267 89% 68%;
+  --app-font-sans: 'Manrope', sans-serif;
+  --app-font-serif: 'Cinzel', serif;
+  --app-font-mono: 'DM Mono', monospace;
+  --font-sans: var(--app-font-sans);
+  --font-serif: var(--app-font-serif);
+  --font-mono: var(--app-font-mono);
+  --radius: 0.75rem;
+  --elevate-1: rgba(255, 255, 255, 0.04);
+  --elevate-2: rgba(255, 255, 255, 0.09);
+  position: relative;
+  isolation: isolate;
+  min-width: 320px;
+  color: hsl(var(--foreground));
+  background-image:
+    radial-gradient(circle at 18% 0%, hsl(267 70% 20% / .18), transparent 30rem),
+    radial-gradient(circle at 90% 20%, hsl(326 80% 23% / .14), transparent 28rem),
+    linear-gradient(180deg, hsl(229 42% 5%), hsl(231 48% 7%));
+  background-attachment: fixed;
+  font-family: var(--app-font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.gofl-current *,
+.gofl-current *::before,
+.gofl-current *::after {
+  box-sizing: border-box;
+}
+
+.gofl-current::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: .22;
+  background-image:
+    linear-gradient(115deg, transparent 0 42%, hsl(267 89% 68% / .05) 42.2%, transparent 42.5%),
+    linear-gradient(65deg, transparent 0 65%, hsl(326 89% 65% / .04) 65.2%, transparent 65.5%);
+}
+
+.gofl-current > * { position: relative; }
+.gofl-current .font-display { font-family: var(--app-font-serif); }
+.gofl-current .font-mono-ui { font-family: var(--app-font-mono); }
+.gofl-current .glass-panel {
+  background: linear-gradient(135deg, hsl(231 39% 12% / .92), hsl(231 39% 7% / .84));
+  box-shadow: inset 0 1px 0 hsl(240 80% 90% / .07), 0 18px 60px hsl(230 45% 2% / .34);
+  backdrop-filter: blur(18px);
+}
+.gofl-current .violet-line {
+  box-shadow: 0 0 0 1px hsl(267 89% 68% / .24), 0 0 34px hsl(267 89% 68% / .10);
+}
+.gofl-current .page-shell { position: relative; isolation: isolate; }
+.gofl-current .animate-rise { animation: gofl-rise-in .6s ease both; }
+.gofl-current .animate-live { animation: gofl-pulse-live 2.2s ease-in-out infinite; }
+.gofl-current ::selection { background: hsl(326 89% 65% / .35); color: hsl(0 0% 100%); }
+.gofl-current button,
+.gofl-current a,
+.gofl-current input,
+.gofl-current select,
+.gofl-current textarea { -webkit-tap-highlight-color: transparent; }
+
+@keyframes gofl-rise-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes gofl-pulse-live {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(326 89% 65% / .35); }
+  50% { box-shadow: 0 0 0 7px hsl(326 89% 65% / 0); }
+}

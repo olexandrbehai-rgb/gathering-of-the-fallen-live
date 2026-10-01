@@ -1,0 +1,30 @@
+import { useMemo, useState } from 'react';
+import { Check, CheckCircle2, ExternalLink, Link2, ListMusic, Radio, SkipForward, X } from 'lucide-react';
+import './_group.css';
+import { GoflShell, SectionHeading, formatDate, queueFixture, sessionFixture, sessionName, t, type GoFLQueueItem } from './_shared';
+
+function QueueRow({ item, onStatus }: { item: GoFLQueueItem; onStatus: (id: string, status: GoFLQueueItem['status']) => void }) {
+  return <article className="grid gap-4 px-4 py-5 sm:grid-cols-[44px_1fr_auto] sm:items-center sm:px-6" data-testid={`row-admin-submission-${item.id}`}>
+    <div className="font-mono-ui text-sm text-primary">#{String(item.queueNumber).padStart(2, '0')}</div>
+    <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-foreground">{item.songTitle}</h3><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${item.status === 'approved' ? 'border-primary/50 text-primary' : item.status === 'played' ? 'border-chart-3/50 text-chart-3' : item.status === 'rejected' || item.status === 'skipped' ? 'border-destructive/50 text-destructive' : 'border-chart-4/50 text-chart-4'}`}>{t(item.status)}</span></div>
+    <p className="mt-1 text-sm text-muted-foreground">{item.artistName} · {item.genre} · {item.country}</p><p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.intro}</p>
+    <div className="mt-3 flex flex-wrap gap-2"><a href={item.trackUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-primary hover:text-accent"><ExternalLink className="size-3" />{t('openLink')}</a>{item.socialUrl && <a href={item.socialUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><Link2 className="size-3" />{t('social')}</a>}</div></div>
+    <div className="flex flex-wrap gap-2 sm:justify-end">{item.status === 'pending' && <><button type="button" onClick={() => onStatus(item.id, 'approved')} className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-primary-foreground"><Check className="size-3" />{t('approve')}</button><button type="button" onClick={() => onStatus(item.id, 'rejected')} className="inline-flex items-center gap-1 rounded-md border border-destructive/50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-destructive"><X className="size-3" />{t('reject')}</button></>}{item.status === 'approved' && <><button type="button" onClick={() => onStatus(item.id, 'played')} className="inline-flex items-center gap-1 rounded-md bg-chart-3/15 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-chart-3"><Check className="size-3" />{t('markPlayed')}</button><button type="button" onClick={() => onStatus(item.id, 'skipped')} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><SkipForward className="size-3" />{t('skip')}</button></>}{item.status === 'played' && <span className="inline-flex items-center gap-1 text-xs text-chart-3"><CheckCircle2 className="size-4" />{t('played')}</span>}</div>
+  </article>;
+}
+
+export function CurrentHost() {
+  const [selectedId, setSelectedId] = useState(sessionFixture[0].id);
+  const [queue, setQueue] = useState(queueFixture);
+  const counts = useMemo(() => ({ all: queue.length, pending: queue.filter((item) => item.status === 'pending').length, approved: queue.filter((item) => item.status === 'approved').length, played: queue.filter((item) => item.status === 'played').length }), [queue]);
+  const updateStatus = (id: string, status: GoFLQueueItem['status']) => setQueue((items) => items.map((item) => item.id === id ? { ...item, status } : item));
+  const selectedSession = sessionFixture.find((item) => item.id === selectedId) || sessionFixture[0];
+  return <GoflShell current="admin"><main className="mx-auto max-w-[1440px] px-4 py-10 sm:px-7 sm:py-14">
+    <div className="flex flex-col justify-between gap-5 border-b border-border/70 pb-8 lg:flex-row lg:items-end"><SectionHeading eyebrow={t('host')} title={t('hostTitle')} body={t('hostBody')} /><a href="#live" className="flex items-center gap-2 rounded-md bg-accent px-4 py-3 text-xs font-bold uppercase tracking-wider text-accent-foreground hover:bg-accent/85"><Radio className="size-4" />{t('live')}</a></div>
+    <div className="mt-7 flex flex-col gap-4 md:flex-row md:items-center"><select value={selectedId} onChange={(e) => setSelectedId(e.target.value)} className="max-w-sm rounded-md border border-input bg-card px-3 py-3 text-sm outline-none focus:border-primary" data-testid="select-admin-session">{sessionFixture.map((session) => <option key={session.id} value={session.id}>{sessionName(session)} · {formatDate(session.startsAt)}</option>)}</select><div className="flex flex-wrap gap-2">{[['all', counts.all], ['pending', counts.pending], ['approved', counts.approved], ['played', counts.played]].map(([key, value]) => <span key={key as string} className="rounded-full border border-border px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><strong className="mr-1 font-mono-ui text-foreground">{value as number}</strong>{t(key as string)}</span>)}</div></div>
+    <div className="mt-7 overflow-hidden rounded-xl border border-border bg-card/30">{queue.length === 0 ? <div className="p-14 text-center"><ListMusic className="mx-auto size-8 text-primary" /><p className="mt-4 text-sm">{t('emptyQueue')}</p><p className="mt-2 text-xs text-muted-foreground">{t('emptyQueueBody')}</p></div> : <div className="divide-y divide-border/70">{queue.map((item) => <QueueRow item={item} key={item.id} onStatus={updateStatus} />)}</div>}</div>
+    <p className="sr-only">Managing {sessionName(selectedSession)}</p>
+  </main></GoflShell>;
+}
+
+export default CurrentHost;
