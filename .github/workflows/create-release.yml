@@ -81,9 +81,9 @@ jobs:
             git worktree add --detach "$build_dir" "$candidate_tag"
 
             if (
-              cd "$build_dir"
-              pnpm install --frozen-lockfile
-              pnpm run typecheck
+              cd "$build_dir" &&
+              pnpm install --frozen-lockfile &&
+              pnpm run typecheck &&
               pnpm run build
             ); then
               git worktree remove --force "$build_dir"
