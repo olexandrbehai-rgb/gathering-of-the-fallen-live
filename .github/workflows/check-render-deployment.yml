@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   smoke-test:
@@ -28,9 +27,12 @@ jobs:
     name: Alert maintainers about the outage
     runs-on: ubuntu-latest
     needs: smoke-test
-    if: failure()
+    if: always() && (needs.smoke-test.result == 'success' || needs.smoke-test.result == 'failure')
+    permissions:
+      issues: write
     steps:
       - name: Open or update the Render availability issue
+        if: needs.smoke-test.result == 'failure'
         uses: actions/github-script@v7
         env:
           FAILED_ENDPOINTS: ${{ needs.smoke-test.outputs.failed_endpoints }}
@@ -77,13 +79,8 @@ jobs:
               core.info(`Created Render availability issue #${issue.number}.`);
             }
 
-  resolve-outage:
-    name: Close the Render availability issue after recovery
-    runs-on: ubuntu-latest
-    needs: smoke-test
-    if: needs.smoke-test.result == 'success'
-    steps:
       - name: Comment on and close the Render availability issue
+        if: needs.smoke-test.result == 'success'
         uses: actions/github-script@v7
         with:
           script: |
