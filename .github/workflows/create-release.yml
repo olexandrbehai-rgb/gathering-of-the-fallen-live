@@ -1,0 +1,103 @@
+name: Create GitHub Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+# Serialize release reconciliation. GitHub may replace pending runs in this
+# group, so each run scans every pushed stable tag and publishes all missing
+# releases in version order instead of relying on one run per tag.
+concurrency:
+  group: stable-release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Validate and publish release
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Record whether the triggering tag is stable
+        id: trigger_tag
+        shell: bash
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "is_stable=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_stable=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Test release version comparison
+        run: node --test .github/scripts/check-release-version.test.mjs
+
+      - name: Publish every missing stable release in order
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t release_tags < <(
+            git tag --list 'v*' |
+              grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' |
+              sort -V
+          )
+
+          if (( ${#release_tags[@]} == 0 )); then
+            echo "No stable release tags were found."
+            exit 0
+          fi
+
+          for candidate_tag in "${release_tags[@]}"; do
+            if gh release view "$candidate_tag" --json tagName >/dev/null 2>&1; then
+              echo "Release $candidate_tag already exists; skipping."
+              continue
+            fi
+
+            bash .github/scripts/check-release-version.sh "$candidate_tag"
+
+            build_dir="$(mktemp -d "$RUNNER_TEMP/release-build.XXXXXX")"
+            rmdir "$build_dir"
+            git worktree add --detach "$build_dir" "$candidate_tag"
+
+            if (
+              cd "$build_dir" &&
+              pnpm install --frozen-lockfile &&
+              pnpm run typecheck &&
+              pnpm run build
+            ); then
+              git worktree remove --force "$build_dir"
+            else
+              git worktree remove --force "$build_dir" || true
+              exit 1
+            fi
+
+            gh release create "$candidate_tag" --verify-tag --generate-notes
+          done
+
+      - name: Reject a malformed triggering tag
+        if: steps.trigger_tag.outputs.is_stable != 'true'
+        shell: bash
+        run: |
+          echo "::error::Release tags must use vMAJOR.MINOR.PATCH, for example v1.2.3."
+          exit 1

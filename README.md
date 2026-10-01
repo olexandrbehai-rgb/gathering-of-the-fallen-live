@@ -64,6 +64,21 @@ The root [`render.yaml`](./render.yaml) defines one free Node web service. It bu
 
 Import the repository as a Render Blueprint to create or sync the service. If it is already linked to Render with automatic deploys enabled, a push to `main` will trigger the configured build. During Blueprint setup, provide `DATABASE_URL` for the existing PostgreSQL database and the three Clerk variables (`CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and `VITE_CLERK_PUBLISHABLE_KEY`) in Render's environment settings. The Blueprint does not provision, migrate, or alter the database, and it does not contain secret values.
 
+The [`check-render-deployment.yml`](./.github/workflows/check-render-deployment.yml) workflow checks the homepage and `/api/healthz` after pushes to `main`, retrying while Render deploys. Set the non-secret GitHub Actions repository variable `RENDER_SERVICE_URL` to the service's public HTTPS base URL (without a trailing slash) under **Settings → Secrets and variables → Actions → Variables**. The workflow does not need database or Clerk secrets.
+
+To see which commit is running on Render, open `https://<your-render-service>/api/healthz`. The JSON `revision` field is Render's deployed commit SHA from its built-in `RENDER_GIT_COMMIT` metadata; it is `null` when that metadata is unavailable. To compare it with the latest GitHub Release, find that release's tag on this repository's GitHub Releases page, then run `git fetch --tags` and `git rev-parse v1.2.3^{commit}` in a clone of this repository, replacing `v1.2.3` with the release tag. If the resulting full SHA matches `revision`, Render is running the commit tagged by that release.
+
+## GitHub Releases
+
+Use stable version tags in `vMAJOR.MINOR.PATCH` format, such as `v1.2.3`. To release a commit, create and push an annotated tag:
+
+```sh
+git tag -a v1.2.3 -m "Release v1.2.3"
+git push origin v1.2.3
+```
+
+The [`create-release.yml`](./.github/workflows/create-release.yml) workflow checks that the tag follows this format and is newer than every published stable release, using semantic-version ordering. Duplicate, older, and malformed versions are rejected before the build or release publication. The workflow tests this comparison, installs the locked dependencies, and runs `pnpm run typecheck` and `pnpm run build` before creating the GitHub Release with automatically generated notes. To run the comparison tests locally, use `pnpm run test:release-version`. The workflow needs the repository's Actions token to have `contents: write` permission.
+
 ## GitHub and deployment
 
 The public repository contains source code and required app assets. Conversation uploads and build prompts are intentionally excluded. Keep `.env`, `.dev.vars`, database URLs, Clerk secret keys, and Cloudflare API tokens out of Git.
