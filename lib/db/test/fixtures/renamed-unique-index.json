@@ -1,0 +1,5 @@
+{
+  "schemaFile": "sessions.ts",
+  "originalName": "sessions_starts_at_unique",
+  "renamedName": "sessions_starts_at_renamed_fixture"
+}
