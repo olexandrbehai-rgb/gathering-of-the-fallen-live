@@ -10,6 +10,10 @@ import { fileURLToPath } from "node:url";
 const packageRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const viteEntry = path.join(packageRoot, "node_modules/vite/bin/vite.js");
 const widths = [320, 390, 430];
+const zoomLevels = [
+  { label: "100%", factor: 1 },
+  { label: "150%", factor: 1.5 },
+];
 const languages = [
   {
     code: "en",
@@ -195,7 +199,7 @@ async function click(selector, devtools, sessionId) {
   );
 }
 
-async function inspectScreen(devtools, sessionId, language, screen, width) {
+async function inspectScreen(devtools, sessionId, language, screen, width, viewportLabel) {
   await waitFor(`${screen} screen`, () =>
     devtools.evaluate(
       `document.querySelector('[data-testid="mobile-screen-${screen}"]') !== null`,
@@ -291,12 +295,12 @@ async function inspectScreen(devtools, sessionId, language, screen, width) {
   assert.equal(
     result.language,
     language.htmlLang,
-    `Expected document language ${language.htmlLang} on ${screen} at ${width}px`,
+    `Expected document language ${language.htmlLang} on ${screen} at ${viewportLabel}`,
   );
   assert.equal(
     result.selectedLanguage,
     "true",
-    `Expected ${language.code} to be selected on ${screen} at ${width}px`,
+    `Expected ${language.code} to be selected on ${screen} at ${viewportLabel}`,
   );
   assert.ok(
     result.title.includes(language.titles[screen]),
@@ -305,7 +309,7 @@ async function inspectScreen(devtools, sessionId, language, screen, width) {
   assert.deepEqual(
     result.clipping,
     [],
-    `${language.code.toUpperCase()} ${screen} screen clips at ${width}px:\n${result.clipping.join("\n")}`,
+    `${language.code.toUpperCase()} ${screen} screen clips at ${viewportLabel}:\n${result.clipping.join("\n")}`,
   );
 }
 
@@ -423,67 +427,88 @@ async function main() {
     await devtools.send("Page.enable", {}, sessionId);
     await devtools.send("Runtime.enable", {}, sessionId);
 
-    for (const width of widths) {
-      await devtools.send(
-        "Emulation.setDeviceMetricsOverride",
-        { width, height: 900, deviceScaleFactor: 1, mobile: true },
-        sessionId,
-      );
-      await devtools.send("Page.navigate", { url: previewUrl }, sessionId);
-      await waitFor("mobile preview to render", () =>
-        devtools.evaluate(
-          "document.querySelector('[data-testid=\"mobile-screen-home\"]') !== null",
-          sessionId,
-        ),
-      );
-      await devtools.evaluate("localStorage.clear()", sessionId);
-      const resetReloadComplete = devtools.waitForEvent(
-        "Page.loadEventFired",
-        (_params, eventSessionId) => eventSessionId === sessionId,
-      );
-      await devtools.send("Page.reload", { ignoreCache: true }, sessionId);
-      await resetReloadComplete;
-      await waitFor("home after resetting language", async () => {
-        const state = await devtools.evaluate(
-          `({ screen: Boolean(document.querySelector('[data-testid="mobile-screen-home"]')), language: Boolean(document.querySelector('[data-testid="language-fr"]')) })`,
+    for (const deviceWidth of widths) {
+      for (const zoom of zoomLevels) {
+        // Browser zoom reduces the CSS viewport while keeping the phone's physical
+        // width unchanged. Emulate that relationship with a narrower CSS viewport
+        // and a matching device scale factor.
+        const width = Math.round(deviceWidth / zoom.factor);
+        const viewportLabel = `${deviceWidth}px device at ${zoom.label} zoom (${width} CSS px)`;
+        await devtools.send(
+          "Emulation.setDeviceMetricsOverride",
+          {
+            width,
+            height: Math.round(900 / zoom.factor),
+            deviceScaleFactor: zoom.factor,
+            mobile: true,
+          },
           sessionId,
         );
-        return state.screen && state.language;
-      });
-
-      await click('[data-testid="language-fr"]', devtools, sessionId);
-      const storedLanguage = await devtools.evaluate(
-        "localStorage.getItem('gfl-language')",
-        sessionId,
-      );
-      assert.equal(storedLanguage, "fr", "Language selector did not persist French");
-      const reloadComplete = devtools.waitForEvent(
-        "Page.loadEventFired",
-        (_params, eventSessionId) => eventSessionId === sessionId,
-      );
-      await devtools.send("Page.reload", { ignoreCache: true }, sessionId);
-      await reloadComplete;
-      await waitFor("saved French selection after reload", () =>
-        devtools.evaluate(
-          `document.querySelector('[data-testid="language-fr"]')?.getAttribute('aria-pressed') === 'true'`,
-          sessionId,
-        ),
-      );
-
-      for (const language of languages) {
-        await click(`[data-testid="language-${language.code}"]`, devtools, sessionId);
-        await waitFor(`${language.code} language selection`, () =>
+        await devtools.send("Page.navigate", { url: previewUrl }, sessionId);
+        await waitFor("mobile preview to render", () =>
           devtools.evaluate(
-            `document.documentElement.lang === ${JSON.stringify(language.htmlLang)} && document.querySelector('[data-testid="language-${language.code}"]')?.getAttribute('aria-pressed') === 'true'`,
+            "document.querySelector('[data-testid=\"mobile-screen-home\"]') !== null",
             sessionId,
           ),
         );
-        await changeScreen(devtools, sessionId, "home");
-        for (const screen of screens) {
-          if (screen !== "home") await changeScreen(devtools, sessionId, screen);
-          await inspectScreen(devtools, sessionId, language, screen, width);
+        await devtools.evaluate("localStorage.clear()", sessionId);
+        const resetReloadComplete = devtools.waitForEvent(
+          "Page.loadEventFired",
+          (_params, eventSessionId) => eventSessionId === sessionId,
+        );
+        await devtools.send("Page.reload", { ignoreCache: true }, sessionId);
+        await resetReloadComplete;
+        await waitFor("home after resetting language", async () => {
+          const state = await devtools.evaluate(
+            `({ screen: Boolean(document.querySelector('[data-testid="mobile-screen-home"]')), language: Boolean(document.querySelector('[data-testid="language-fr"]')) })`,
+            sessionId,
+          );
+          return state.screen && state.language;
+        });
+
+        await click('[data-testid="language-fr"]', devtools, sessionId);
+        const storedLanguage = await devtools.evaluate(
+          "localStorage.getItem('gfl-language')",
+          sessionId,
+        );
+        assert.equal(storedLanguage, "fr", "Language selector did not persist French");
+        const reloadComplete = devtools.waitForEvent(
+          "Page.loadEventFired",
+          (_params, eventSessionId) => eventSessionId === sessionId,
+        );
+        await devtools.send("Page.reload", { ignoreCache: true }, sessionId);
+        await reloadComplete;
+        await waitFor("saved French selection after reload", () =>
+          devtools.evaluate(
+            `document.querySelector('[data-testid="language-fr"]')?.getAttribute('aria-pressed') === 'true'`,
+            sessionId,
+          ),
+        );
+
+        for (const language of languages) {
+          await click(`[data-testid="language-${language.code}"]`, devtools, sessionId);
+          await waitFor(`${language.code} language selection`, () =>
+            devtools.evaluate(
+              `document.documentElement.lang === ${JSON.stringify(language.htmlLang)} && document.querySelector('[data-testid="language-${language.code}"]')?.getAttribute('aria-pressed') === 'true'`,
+              sessionId,
+            ),
+          );
+          await changeScreen(devtools, sessionId, "home");
+          for (const screen of screens) {
+            if (screen !== "home") await changeScreen(devtools, sessionId, screen);
+            await inspectScreen(
+              devtools,
+              sessionId,
+              language,
+              screen,
+              width,
+              viewportLabel,
+            );
+          }
+          console.log(
+            `PASS ${language.code.toUpperCase()} at ${viewportLabel}: ${screens.join(", ")}`,
+          );
         }
-        console.log(`PASS ${language.code.toUpperCase()} at ${width}px: ${screens.join(", ")}`);
       }
     }
 
