@@ -786,7 +786,7 @@ export function MobileExperience() {
         </div>
       </header>
 
-      <main className="gm-main">
+      <main className="gm-main" data-testid={`mobile-screen-${screen}`}>
         {screen === 'home' && <>
           <section className="gm-home-hero">
             <p className="gm-eyebrow"><i className="gm-live-dot" aria-hidden="true" />{t('heroEyebrow')}</p>
