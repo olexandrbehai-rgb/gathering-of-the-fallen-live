@@ -245,7 +245,7 @@ export function Brand({ compact = false }: { compact?: boolean }) {
 export function Header({ current }: { current: string }) {
   const [open, setOpen] = useState(false);
   const { language, setLanguage, t } = useGoflLanguage();
-  const nav = [{ href: '#home', key: 'home' }, { href: '#sessions', key: 'sessions' }, { href: '#submit', key: 'submit' }, { href: '#host', key: 'admin' }];
+  const nav = [{ href: '#home', key: 'home' }, { href: '#sessions', key: 'sessions' }, { href: '#submit', key: 'submit' }, { href: '#host', key: 'admin' }] as const;
   return <header className="sticky top-0 z-50 border-b border-border/70 bg-background/85 backdrop-blur-xl">
     <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between gap-5 px-4 sm:px-7">
       <Brand compact />
