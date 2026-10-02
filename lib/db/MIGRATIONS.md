@@ -29,7 +29,10 @@ database. It creates the existing sessions and submissions schema, seeds rows,
 applies the checked-in baseline and a test-only additive migration, and checks
 that the seeded records survive, the migration journal prevents a second
 execution, and applied migration hashes match their SQL files. It also verifies
-that changing or removing an applied SQL file is rejected.
+that changing or removing an applied SQL file is rejected. Before the successful
+run, the test executes a migration that adds a column and then fails; it checks
+that the column and migration-history records are rolled back. It then fixes the
+SQL and confirms the migration applies successfully on retry.
 
 The first migration is a no-op baseline for the already-initialized Render
 database. Its snapshot records the schema represented by the current Drizzle
