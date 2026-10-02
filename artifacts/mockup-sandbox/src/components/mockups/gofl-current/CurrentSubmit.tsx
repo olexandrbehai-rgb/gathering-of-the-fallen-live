@@ -1,15 +1,20 @@
 import { useState, type FormEvent } from 'react';
 import { CheckCircle2, Send, ShieldCheck } from 'lucide-react';
 import './_group.css';
-import { Field, GoflShell, QueuePreview, SectionHeading, formatDate, sessionFixture, sessionName, t } from './_shared';
+import { Field, GoflLanguageProvider, GoflShell, QueuePreview, SectionHeading, formatDate, sessionFixture, sessionName, useGoflLanguage } from './_shared';
 
 type SubmissionForm = { artistName: string; songTitle: string; intro: string; genre: string; country: string; socialUrl: string; trackUrl: string };
 
 export function CurrentSubmit() {
+  return <GoflLanguageProvider><CurrentSubmitContent /></GoflLanguageProvider>;
+}
+
+function CurrentSubmitContent() {
   const [sessionId, setSessionId] = useState(sessionFixture[0].id);
   const [form, setForm] = useState<SubmissionForm>({ artistName: '', songTitle: '', intro: '', genre: '', country: '', socialUrl: '', trackUrl: '' });
   const [rightsAccepted, setRightsAccepted] = useState(false);
   const [receipt, setReceipt] = useState<number | null>(null);
+  const { language, t } = useGoflLanguage();
   const selected = sessionFixture.find((session) => session.id === sessionId);
   const update = (key: keyof SubmissionForm, value: string) => setForm((current) => ({ ...current, [key]: value }));
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -25,7 +30,7 @@ export function CurrentSubmit() {
     <div><label className="mb-2 flex justify-between text-xs font-bold uppercase tracking-wider text-foreground">{t('intro')}<span className="font-mono-ui text-[10px] font-normal text-muted-foreground">{form.intro.length}/300</span></label><textarea required maxLength={300} value={form.intro} onChange={(e) => update('intro', e.target.value)} placeholder={t('introHint')} className="min-h-28 w-full resize-y rounded-md border border-input bg-background/60 px-3 py-3 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20" data-testid="input-intro" /></div>
     <div className="grid gap-5 sm:grid-cols-2"><Field label={t('genre')} required value={form.genre} onChange={(v) => update('genre', v)} placeholder={t('genrePlaceholder')} /><Field label={t('country')} required value={form.country} onChange={(v) => update('country', v)} placeholder={t('countryPlaceholder')} /></div>
     <div className="grid gap-5 sm:grid-cols-2"><Field label={t('social')} value={form.socialUrl} onChange={(v) => update('socialUrl', v)} placeholder={t('urlPlaceholder')} type="url" /><Field label={t('track')} required value={form.trackUrl} onChange={(v) => update('trackUrl', v)} placeholder={t('urlPlaceholder')} type="url" /></div>
-    <div><label className="mb-2 block text-xs font-bold uppercase tracking-wider text-foreground">{t('chooseSession')} <span className="text-accent">*</span></label><select required value={sessionId} onChange={(e) => setSessionId(e.target.value)} className="w-full rounded-md border border-input bg-background/60 px-3 py-3 text-sm outline-none focus:border-primary" data-testid="select-session">{sessionFixture.map((session) => <option key={session.id} value={session.id} disabled={!session.isOpen || session.available < 1}>{sessionName(session)} · {formatDate(session.startsAt, { weekday: 'short' })} · {session.available} {t('available')}</option>)}</select>{selected && !selected.isOpen && <p className="mt-2 text-xs text-destructive">{t('sessionClosed')}</p>}</div>
+     <div><label className="mb-2 block text-xs font-bold uppercase tracking-wider text-foreground">{t('chooseSession')} <span className="text-accent">*</span></label><select required value={sessionId} onChange={(e) => setSessionId(e.target.value)} className="w-full rounded-md border border-input bg-background/60 px-3 py-3 text-sm outline-none focus:border-primary" data-testid="select-session">{sessionFixture.map((session) => <option key={session.id} value={session.id} disabled={!session.isOpen || session.available < 1}>{sessionName(session, language)} · {formatDate(session.startsAt, language, { weekday: 'short' })} · {session.available} {t('available')}</option>)}</select>{selected && !selected.isOpen && <p className="mt-2 text-xs text-destructive">{t('sessionClosed')}</p>}</div>
     <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-background/35 p-3 text-xs leading-5 text-muted-foreground"><input type="checkbox" checked={rightsAccepted} onChange={(e) => setRightsAccepted(e.target.checked)} className="mt-1 size-4 accent-[hsl(var(--primary))]" data-testid="input-rights-accepted" /><span>{t('rights')} <span className="text-accent">*</span></span></label>
     <button type="submit" className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-3.5 text-xs font-bold uppercase tracking-[.18em] text-primary-foreground transition hover:bg-primary/85 disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-submit-track"><Send className="size-4" />{t('sendTrack')}</button>
   </form></div><aside className="space-y-5"><div className="rounded-xl border border-primary/30 bg-primary/5 p-6"><ShieldCheck className="size-6 text-primary" /><h2 className="mt-5 font-display text-2xl">{t('howItWorks')}</h2><div className="mt-6 space-y-5">{[['step1', 'step1Body'], ['step2', 'step2Body'], ['step3', 'step3Body']].map(([title, body], i) => <div key={title} className="flex gap-3"><span className="font-mono-ui text-xs text-accent">0{i + 1}</span><div><h3 className="text-sm font-bold">{t(title)}</h3><p className="mt-1 text-xs leading-6 text-muted-foreground">{t(body)}</p></div></div>)}</div></div><QueuePreview /></aside></div></main></GoflShell>;
