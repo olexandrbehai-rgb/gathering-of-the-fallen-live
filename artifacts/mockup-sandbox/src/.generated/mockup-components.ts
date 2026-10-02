@@ -4,5 +4,6 @@ export const modules: ModuleMap = {
   "./components/mockups/gofl-current/CurrentHost.tsx": () => import("../components/mockups/gofl-current/CurrentHost.tsx"),
   "./components/mockups/gofl-current/CurrentLive.tsx": () => import("../components/mockups/gofl-current/CurrentLive.tsx"),
   "./components/mockups/gofl-current/CurrentSessions.tsx": () => import("../components/mockups/gofl-current/CurrentSessions.tsx"),
-  "./components/mockups/gofl-current/CurrentSubmit.tsx": () => import("../components/mockups/gofl-current/CurrentSubmit.tsx")
+  "./components/mockups/gofl-current/CurrentSubmit.tsx": () => import("../components/mockups/gofl-current/CurrentSubmit.tsx"),
+  "./components/mockups/gofl-mobile/MobileExperience.tsx": () => import("../components/mockups/gofl-mobile/MobileExperience.tsx")
 };
