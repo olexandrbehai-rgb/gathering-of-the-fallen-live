@@ -16,6 +16,28 @@
 4. Test the migration against a disposable development database before
    production.
 
+## Check for unreviewed generated migrations
+
+Run the isolated generation check with:
+
+```bash
+pnpm --filter @workspace/db run check:generated-migrations
+```
+
+CI runs this check for pull requests and pushes that change the database
+schema, migration history, or check configuration. It copies the checked-in
+migrations and snapshots to a temporary directory, runs Drizzle generation
+against that copy, and fails if generation adds a migration. It removes
+database connection variables from the child process and does not connect to
+any database or modify the checked-in migration history.
+
+To intentionally change the schema, update the models under `src/schema/` and
+run `pnpm --filter @workspace/db run generate`. Review the generated SQL,
+matching snapshot, and `_journal.json`; verify each SQL operation is expected
+and preserves existing data. Commit the migration SQL, snapshot, and journal
+together, then rerun `check:generated-migrations` to confirm the checked-in
+state is consistent.
+
 Run the automated PostgreSQL integration test with:
 
 ```bash

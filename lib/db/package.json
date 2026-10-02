@@ -9,8 +9,10 @@
   },
   "scripts": {
     "generate": "drizzle-kit generate --config ./drizzle.migrations.config.ts",
+    "check:generated-migrations": "node ./scripts/check-generated-migrations.mjs",
     "migrate:production": "node ./scripts/migrate-production.mjs",
     "test:migrations": "node --test ./test/migrations.integration.test.mjs",
+    "test:generated-migrations": "node --test ./test/check-generated-migrations.test.mjs",
     "push": "drizzle-kit push --config ./drizzle.config.ts",
     "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"
   },
