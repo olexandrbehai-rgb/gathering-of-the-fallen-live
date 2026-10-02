@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:mobile-clipping": "node scripts/test-mobile-clipping.mjs",
+    "test:desktop-interactions": "node scripts/test-desktop-interactions.mjs",
     "test:desktop-translations": "node --test scripts/test-desktop-translations.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
