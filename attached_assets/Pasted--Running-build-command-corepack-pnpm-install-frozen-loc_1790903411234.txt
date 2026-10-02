@@ -1,0 +1,107 @@
+==> Running build command 'corepack pnpm install --frozen-lockfile && corepack pnpm run build'...
+> workspace@0.0.0 build /opt/render/project/src
+> pnpm run typecheck && PORT=${PORT:-20541} BASE_PATH=${BASE_PATH:-/} pnpm -r --if-present run build
+> workspace@0.0.0 typecheck /opt/render/project/src
+> pnpm run typecheck:libs && pnpm -r --filter "./artifacts/**" --filter "./scripts" --if-present run typecheck
+> workspace@0.0.0 typecheck:libs /opt/render/project/src
+> tsc --build
+==> Uploading build...
+==> Uploaded in 3.9s. Compression took 2.3s
+==> Build successful 🎉
+==> Deploying...
+==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+==> Running 'corepack pnpm --filter @workspace/api-server run start'
+> @workspace/api-server@0.0.0 start /opt/render/project/src/artifacts/api-server
+> node --enable-source-maps ./dist/index.mjs
+{"level":30,"time":1790903434892,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","port":10000,"msg":"Server listening"}
+Attention: Clerk collects telemetry data from its SDKs when connected to development instances.
+The data collected is used to inform Clerk's product roadmap.
+To learn more, including how to opt-out from the telemetry program, visit: https://clerk.com/docs/telemetry.
+{"level":30,"time":1790903435939,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":1,"method":"HEAD","url":"/"},"res":{"statusCode":200},"responseTime":149,"msg":"request completed"}
+{"level":30,"time":1790903439950,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":2,"method":"GET","url":"/api/healthz"},"res":{"statusCode":200},"responseTime":7,"msg":"request completed"}
+{"level":30,"time":1790903439954,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":3,"method":"GET","url":"/api/healthz"},"res":{"statusCode":200},"responseTime":2,"msg":"request completed"}
+==> Your service is live 🎉
+{"level":30,"time":1790903440806,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":4,"method":"GET","url":"/"},"res":{"statusCode":200},"responseTime":4,"msg":"request completed"}
+==> 
+==> ///////////////////////////////////////////////////////////
+==> 
+==> Available at your primary URL https://gathering-of-the-fallen-live.onrender.com
+==> 
+==> ///////////////////////////////////////////////////////////
+{"level":30,"time":1790903444954,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":5,"method":"GET","url":"/api/healthz"},"res":{"statusCode":200},"responseTime":2,"msg":"request completed"}
+{"level":30,"time":1790903449954,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":6,"method":"GET","url":"/api/healthz"},"res":{"statusCode":200},"responseTime":2,"msg":"request completed"}
+{"level":30,"time":1790903454954,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":7,"method":"GET","url":"/api/healthz"},"res":{"statusCode":200},"responseTime":2,"msg":"request completed"}
+{"level":30,"time":1790903459945,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":8,"method":"GET","url":"/api/healthz"},"res":{"statusCode":200},"responseTime":1,"msg":"request completed"}
+{"level":30,"time":1790903459953,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":9,"method":"GET","url":"/api/healthz"},"res":{"statusCode":200},"responseTime":2,"msg":"request completed"}
+(node:84) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"level":30,"time":1790903463181,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":11,"method":"GET","url":"/sessions"},"res":{"statusCode":200},"responseTime":4,"msg":"request completed"}
+{"level":30,"time":1790903463224,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":10,"method":"GET","url":"/api/sessions"},"res":{"statusCode":null},"responseTime":1964,"msg":"request aborted"}
+{"level":30,"time":1790903463265,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":12,"method":"GET","url":"/assets/index-BhijZgvK.js"},"res":{"statusCode":200},"responseTime":4,"msg":"request completed"}
+{"level":30,"time":1790903463269,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":13,"method":"GET","url":"/assets/index-CJfJlS9Q.css"},"res":{"statusCode":200},"responseTime":2,"msg":"request completed"}
+{"level":30,"time":1790903463488,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":14,"method":"GET","url":"/api/__clerk/npm/@clerk/clerk-js@6/dist/clerk.browser.js"},"res":{"statusCode":307},"responseTime":97,"msg":"request completed"}
+{"level":30,"time":1790903463488,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":15,"method":"GET","url":"/favicon.svg"},"res":{"statusCode":200},"responseTime":79,"msg":"request completed"}
+{"level":30,"time":1790903463585,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":17,"method":"GET","url":"/assets/gfl-live-stage-background-D_OjuyW3.png"},"res":{"statusCode":200},"responseTime":82,"msg":"request completed"}
+{"level":50,"time":1790903463689,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","event":"public_sessions_failed","error":{"name":"Error","message":"Failed query: select \"starts_at\" from \"sessions\" where \"sessions\".\"starts_at\" in ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)\nparams: 2026-10-03T00:00:00.000Z,2026-10-04T01:00:00.000Z,2026-10-05T00:00:00.000Z,2026-10-06T00:00:00.000Z,2026-10-07T00:00:00.000Z,2026-10-08T00:00:00.000Z,2026-10-09T00:00:00.000Z,2026-10-10T00:00:00.000Z,2026-10-11T01:00:00.000Z,2026-10-12T00:00:00.000Z,2026-10-13T00:00:00.000Z,2026-10-14T00:00:00.000Z,2026-10-15T00:00:00.000Z,2026-10-16T00:00:00.000Z","cause":{"name":"error","message":"relation \"sessions\" does not exist","code":"42P01","severity":"ERROR","routine":"parserOpenTable"}},"msg":"Failed to load public sessions"}
+Error: Failed query: select "starts_at" from "sessions" where "sessions"."starts_at" in ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+params: 2026-10-03T00:00:00.000Z,2026-10-04T01:00:00.000Z,2026-10-05T00:00:00.000Z,2026-10-06T00:00:00.000Z,2026-10-07T00:00:00.000Z,2026-10-08T00:00:00.000Z,2026-10-09T00:00:00.000Z,2026-10-10T00:00:00.000Z,2026-10-11T01:00:00.000Z,2026-10-12T00:00:00.000Z,2026-10-13T00:00:00.000Z,2026-10-14T00:00:00.000Z,2026-10-15T00:00:00.000Z,2026-10-16T00:00:00.000Z
+    at NodePgPreparedQuery.queryWithCache (/opt/render/project/src/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.23.1_pg@8.23.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async <anonymous> (/opt/render/project/src/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.23.1_pg@8.23.0/node_modules/src/node-postgres/session.ts:154:19)
+    at async <anonymous> (/opt/render/project/src/artifacts/api-server/src/routes/gathering.ts:95:30)
+    at async _NodePgSession.transaction (/opt/render/project/src/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.23.1_pg@8.23.0/node_modules/src/node-postgres/session.ts:259:19)
+    at async ensureUpcomingSessions (/opt/render/project/src/artifacts/api-server/src/routes/gathering.ts:89:3)
+    at async <anonymous> (/opt/render/project/src/artifacts/api-server/src/routes/gathering.ts:177:5)
+{"level":30,"time":1790903465492,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":18,"method":"GET","url":"/api/__clerk/npm/@clerk/ui@1/dist/ui.browser.js"},"res":{"statusCode":307},"responseTime":1812,"msg":"request completed"}
+{"level":30,"time":1790903465588,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":19,"method":"GET","url":"/api/healthz"},"res":{"statusCode":200},"responseTime":2,"msg":"request completed"}
+{"level":30,"time":1790903466589,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":20,"method":"POST","url":"/api/__clerk/v1/environment"},"res":{"statusCode":400},"responseTime":197,"msg":"request completed"}
+{"level":30,"time":1790903466591,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":21,"method":"GET","url":"/api/__clerk/v1/client"},"res":{"statusCode":400},"responseTime":196,"msg":"request completed"}
+{"level":50,"time":1790903467359,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","event":"public_sessions_failed","error":{"name":"Error","message":"Failed query: select \"starts_at\" from \"sessions\" where \"sessions\".\"starts_at\" in ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)\nparams: 2026-10-03T00:00:00.000Z,2026-10-04T01:00:00.000Z,2026-10-05T00:00:00.000Z,2026-10-06T00:00:00.000Z,2026-10-07T00:00:00.000Z,2026-10-08T00:00:00.000Z,2026-10-09T00:00:00.000Z,2026-10-10T00:00:00.000Z,2026-10-11T01:00:00.000Z,2026-10-12T00:00:00.000Z,2026-10-13T00:00:00.000Z,2026-10-14T00:00:00.000Z,2026-10-15T00:00:00.000Z,2026-10-16T00:00:00.000Z","cause":{"name":"error","message":"relation \"sessions\" does not exist","code":"42P01","severity":"ERROR","routine":"parserOpenTable"}},"msg":"Failed to load public sessions"}
+{"level":30,"time":1790903467360,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":16,"method":"GET","url":"/api/sessions"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/opt/render/project/src/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/opt/render/project/src/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:526:24)\n    at onFinish (node:_http_outgoing:1140:10)\n    at afterWrite (node:internal/streams/writable:712:5)\n    at afterWriteTick (node:internal/streams/writable:698:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":3861,"msg":"request errored"}
+Error: Failed query: select "starts_at" from "sessions" where "sessions"."starts_at" in ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+params: 2026-10-03T00:00:00.000Z,2026-10-04T01:00:00.000Z,2026-10-05T00:00:00.000Z,2026-10-06T00:00:00.000Z,2026-10-07T00:00:00.000Z,2026-10-08T00:00:00.000Z,2026-10-09T00:00:00.000Z,2026-10-10T00:00:00.000Z,2026-10-11T01:00:00.000Z,2026-10-12T00:00:00.000Z,2026-10-13T00:00:00.000Z,2026-10-14T00:00:00.000Z,2026-10-15T00:00:00.000Z,2026-10-16T00:00:00.000Z
+    at NodePgPreparedQuery.queryWithCache (/opt/render/project/src/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.23.1_pg@8.23.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async <anonymous> (/opt/render/project/src/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.23.1_pg@8.23.0/node_modules/src/node-postgres/session.ts:154:19)
+    at async <anonymous> (/opt/render/project/src/artifacts/api-server/src/routes/gathering.ts:95:30)
+    at async _NodePgSession.transaction (/opt/render/project/src/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.23.1_pg@8.23.0/node_modules/src/node-postgres/session.ts:259:19)
+    at async ensureUpcomingSessions (/opt/render/project/src/artifacts/api-server/src/routes/gathering.ts:89:3)
+    at async <anonymous> (/opt/render/project/src/artifacts/api-server/src/routes/gathering.ts:177:5)
+{"level":30,"time":1790903469953,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":22,"method":"GET","url":"/api/healthz"},"res":{"statusCode":200},"responseTime":1,"msg":"request completed"}
+{"level":50,"time":1790903471783,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","event":"public_sessions_failed","error":{"name":"Error","message":"Failed query: select \"starts_at\" from \"sessions\" where \"sessions\".\"starts_at\" in ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)\nparams: 2026-10-03T00:00:00.000Z,2026-10-04T01:00:00.000Z,2026-10-05T00:00:00.000Z,2026-10-06T00:00:00.000Z,2026-10-07T00:00:00.000Z,2026-10-08T00:00:00.000Z,2026-10-09T00:00:00.000Z,2026-10-10T00:00:00.000Z,2026-10-11T01:00:00.000Z,2026-10-12T00:00:00.000Z,2026-10-13T00:00:00.000Z,2026-10-14T00:00:00.000Z,2026-10-15T00:00:00.000Z,2026-10-16T00:00:00.000Z","cause":{"name":"error","message":"relation \"sessions\" does not exist","code":"42P01","severity":"ERROR","routine":"parserOpenTable"}},"msg":"Failed to load public sessions"}
+{"level":30,"time":1790903471784,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":23,"method":"GET","url":"/api/sessions"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/opt/render/project/src/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/opt/render/project/src/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:526:24)\n    at onFinish (node:_http_outgoing:1140:10)\n    at afterWrite (node:internal/streams/writable:712:5)\n    at afterWriteTick (node:internal/streams/writable:698:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":395,"msg":"request errored"}
+Error: Failed query: select "starts_at" from "sessions" where "sessions"."starts_at" in ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+params: 2026-10-03T00:00:00.000Z,2026-10-04T01:00:00.000Z,2026-10-05T00:00:00.000Z,2026-10-06T00:00:00.000Z,2026-10-07T00:00:00.000Z,2026-10-08T00:00:00.000Z,2026-10-09T00:00:00.000Z,2026-10-10T00:00:00.000Z,2026-10-11T01:00:00.000Z,2026-10-12T00:00:00.000Z,2026-10-13T00:00:00.000Z,2026-10-14T00:00:00.000Z,2026-10-15T00:00:00.000Z,2026-10-16T00:00:00.000Z
+    at NodePgPreparedQuery.queryWithCache (/opt/render/project/src/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.23.1_pg@8.23.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async <anonymous> (/opt/render/project/src/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.23.1_pg@8.23.0/node_modules/src/node-postgres/session.ts:154:19)
+    at async <anonymous> (/opt/render/project/src/artifacts/api-server/src/routes/gathering.ts:95:30)
+    at async _NodePgSession.transaction (/opt/render/project/src/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.23.1_pg@8.23.0/node_modules/src/node-postgres/session.ts:259:19)
+    at async ensureUpcomingSessions (/opt/render/project/src/artifacts/api-server/src/routes/gathering.ts:89:3)
+    at async <anonymous> (/opt/render/project/src/artifacts/api-server/src/routes/gathering.ts:177:5)
+{"level":30,"time":1790903472732,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":24,"method":"GET","url":"/sessions"},"res":{"statusCode":304},"responseTime":5,"msg":"request completed"}
+{"level":30,"time":1790903472799,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":25,"method":"GET","url":"/assets/index-BhijZgvK.js"},"res":{"statusCode":304},"responseTime":2,"msg":"request completed"}
+{"level":30,"time":1790903472811,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":26,"method":"GET","url":"/assets/index-CJfJlS9Q.css"},"res":{"statusCode":304},"responseTime":2,"msg":"request completed"}
+{"level":30,"time":1790903472888,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":29,"method":"GET","url":"/assets/gfl-live-stage-background-D_OjuyW3.png"},"res":{"statusCode":304},"responseTime":1,"msg":"request completed"}
+{"level":30,"time":1790903472890,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":30,"method":"GET","url":"/favicon.svg"},"res":{"statusCode":304},"responseTime":1,"msg":"request completed"}
+{"level":30,"time":1790903472894,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":27,"method":"GET","url":"/api/__clerk/npm/@clerk/clerk-js@6/dist/clerk.browser.js"},"res":{"statusCode":307},"responseTime":12,"msg":"request completed"}
+{"level":30,"time":1790903473012,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":31,"method":"GET","url":"/api/__clerk/npm/@clerk/ui@1/dist/ui.browser.js"},"res":{"statusCode":307},"responseTime":11,"msg":"request completed"}
+{"level":30,"time":1790903473181,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":33,"method":"POST","url":"/api/__clerk/v1/environment"},"res":{"statusCode":400},"responseTime":72,"msg":"request completed"}
+{"level":30,"time":1790903473185,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":32,"method":"GET","url":"/api/__clerk/v1/client"},"res":{"statusCode":400},"responseTime":77,"msg":"request completed"}
+{"level":50,"time":1790903473277,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","event":"public_sessions_failed","error":{"name":"Error","message":"Failed query: select \"starts_at\" from \"sessions\" where \"sessions\".\"starts_at\" in ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)\nparams: 2026-10-03T00:00:00.000Z,2026-10-04T01:00:00.000Z,2026-10-05T00:00:00.000Z,2026-10-06T00:00:00.000Z,2026-10-07T00:00:00.000Z,2026-10-08T00:00:00.000Z,2026-10-09T00:00:00.000Z,2026-10-10T00:00:00.000Z,2026-10-11T01:00:00.000Z,2026-10-12T00:00:00.000Z,2026-10-13T00:00:00.000Z,2026-10-14T00:00:00.000Z,2026-10-15T00:00:00.000Z,2026-10-16T00:00:00.000Z","cause":{"name":"error","message":"relation \"sessions\" does not exist","code":"42P01","severity":"ERROR","routine":"parserOpenTable"}},"msg":"Failed to load public sessions"}
+{"level":30,"time":1790903473277,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":28,"method":"GET","url":"/api/sessions"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/opt/render/project/src/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/opt/render/project/src/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:526:24)\n    at onFinish (node:_http_outgoing:1140:10)\n    at afterWrite (node:internal/streams/writable:712:5)\n    at afterWriteTick (node:internal/streams/writable:698:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":394,"msg":"request errored"}
+Error: Failed query: select "starts_at" from "sessions" where "sessions"."starts_at" in ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+params: 2026-10-03T00:00:00.000Z,2026-10-04T01:00:00.000Z,2026-10-05T00:00:00.000Z,2026-10-06T00:00:00.000Z,2026-10-07T00:00:00.000Z,2026-10-08T00:00:00.000Z,2026-10-09T00:00:00.000Z,2026-10-10T00:00:00.000Z,2026-10-11T01:00:00.000Z,2026-10-12T00:00:00.000Z,2026-10-13T00:00:00.000Z,2026-10-14T00:00:00.000Z,2026-10-15T00:00:00.000Z,2026-10-16T00:00:00.000Z
+    at NodePgPreparedQuery.queryWithCache (/opt/render/project/src/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.23.1_pg@8.23.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async <anonymous> (/opt/render/project/src/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.23.1_pg@8.23.0/node_modules/src/node-postgres/session.ts:154:19)
+    at async <anonymous> (/opt/render/project/src/artifacts/api-server/src/routes/gathering.ts:95:30)
+    at async _NodePgSession.transaction (/opt/render/project/src/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.23.1_pg@8.23.0/node_modules/src/node-postgres/session.ts:259:19)
+    at async ensureUpcomingSessions (/opt/render/project/src/artifacts/api-server/src/routes/gathering.ts:89:3)
+    at async <anonymous> (/opt/render/project/src/artifacts/api-server/src/routes/gathering.ts:177:5)
+{"level":30,"time":1790903474953,"pid":84,"hostname":"srv-dauq0hnpn0mc738m5nn0-hibernate-6465fcf9cf-mdfpx","req":{"id":34,"method":"GET","url":"/api/healthz"},"res":{"statusCode":200},"responseTime":1,"msg":"request completed"}
