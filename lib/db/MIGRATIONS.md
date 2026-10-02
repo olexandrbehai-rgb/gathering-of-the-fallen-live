@@ -38,9 +38,7 @@ The first migration is a no-op baseline for the already-initialized Render
 database. Its snapshot records the schema represented by the current Drizzle
 models; it does not create application tables on a fresh database. Keep this
 baseline migration in history so later generated migrations diff from the
-existing production schema. Before the first production run, compare the live
-tables with the snapshot; the baseline intentionally performs no application
-schema validation or creation.
+existing production schema.
 
 ### Render baseline verification
 
@@ -63,19 +61,13 @@ The declared indexes match: `sessions_starts_at_unique` (unique on
 `submissions_session_queue_unique` (unique on `session_id, queue_number`),
 and `submissions_session_status_queue_idx` (`session_id, status,
 queue_number`). The live primary-key indexes correspond to the snapshot's
-primary-key columns. The `submissions.session_id` foreign key references
-`sessions.id` with `NO ACTION` on delete and update, as expected, but its live
-name is `submissions_session_id_fkey` rather than the snapshot name
-`submissions_session_id_sessions_id_fk`. This is a name-only difference; the
-constraint is non-deferrable and its relationship and behavior match.
+primary-key columns. The `submissions.session_id` foreign key is named
+`submissions_session_id_fkey` and references `sessions.id` with `NO ACTION` on
+delete and update, matching the checked-in snapshot.
 
 No production schema change is needed to apply the no-op baseline, and none
-was made during this inspection. Preserve the existing foreign key rather
-than dropping and recreating it. Before a future migration needs to alter or
-remove that foreign key, explicitly account for the live constraint name in a
-reviewed versioned migration, after confirming the live schema and arranging
-a current backup. Do not apply migrations while any other schema differences
-remain unexplained.
+was made during this inspection. Do not apply migrations while any schema
+differences remain unexplained.
 
 ## Apply to production
 
@@ -89,13 +81,28 @@ pnpm --filter @workspace/db run migrate:production
 The command requires the `RENDER_DATABASE_URL` Replit secret to contain the
 external Render PostgreSQL connection URL. The production config rejects
 non-Render endpoints and enforces TLS. It does not print the connection URL.
-Before invoking Drizzle Kit, the command compares every applied migration's
-recorded SHA-256 hash with the checked-in SQL identified by its journal
-timestamp. If an applied migration's SQL is changed or missing, or its
-timestamp is absent or ambiguous in the checked-in journal, the command stops
-without running migrations. Restore the applied migration file; do not rewrite
-historical SQL. The migration command records applied migration versions in
-Drizzle's own migration bookkeeping table.
+Before invoking Drizzle Kit, the command performs two catalog-only checks in
+one PostgreSQL `READ ONLY` transaction:
+
+1. It compares every applied migration's recorded SHA-256 hash with the
+   checked-in SQL identified by its journal timestamp. If an applied
+   migration's SQL is changed or missing, or its timestamp is absent or
+   ambiguous in the checked-in journal, the command stops.
+2. It compares the live `public` catalog with the Drizzle snapshot for the
+   latest applied migration. Before the no-op baseline has a journal record,
+   it checks the baseline snapshot. The comparison covers public tables and
+   columns, column types, nullability, defaults and primary-key membership,
+   indexes, foreign keys, and enum labels and order. Missing, additional, or
+   differently named objects stop the run before DDL.
+
+On a mismatch, use the reported schema object names and difference types to
+investigate; the preflight does not read application rows or print the
+connection URL. Determine whether the live change was intentional and resolve
+it through a reviewed, versioned migration only after confirming the target
+and arranging a current backup. Do not edit a historical snapshot just to
+silence a mismatch. Rerun the command after resolving the discrepancy. The
+migration command records applied migration versions in Drizzle's own
+migration bookkeeping table.
 
 This command is not part of application startup, the Render build or start
 commands, or the deployment workflow. Do not add automatic migration execution
