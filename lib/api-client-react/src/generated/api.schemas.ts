@@ -97,6 +97,11 @@ export type AdminSessionSummary = SessionSummary & {
   played: number;
 };
 
+export const AdminAccessStatusValue = {
+  authorized: true,
+} as const;
+export type AdminAccessStatus = typeof AdminAccessStatusValue;
+
 export type AdminQueueSubmissionStatus = typeof AdminQueueSubmissionStatus[keyof typeof AdminQueueSubmissionStatus];
 
 

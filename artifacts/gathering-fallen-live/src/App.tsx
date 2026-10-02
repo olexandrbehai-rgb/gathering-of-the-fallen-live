@@ -33,10 +33,12 @@ import { publishableKeyFromHost } from '@clerk/react/internal';
 import { frFR, ukUA } from '@clerk/localizations';
 import { shadcn } from '@clerk/themes';
 import {
+  getGetAdminAccessQueryKey,
   getGetAdminSessionQueueQueryKey,
   getGetSessionQueuePreviewQueryKey,
   useCreateSubmission,
   useGetAdminSessionQueue,
+  useGetAdminAccess,
   useGetSessionQueuePreview,
   useListAdminSessions,
   useListSessions,
@@ -112,6 +114,8 @@ const copy: Record<Language, Copy> = {
     artistPlaceholder: 'Your artist name', songPlaceholder: 'The song we should hear', urlPlaceholder: 'https://…',
     introCount: 'characters', selected: 'Selected', sessionClosed: 'This session is closed for submissions.',
     hostOnly: 'Host access required', hostOnlyBody: 'Sign in to review submissions and run a live session.',
+    hostAccessDenied: 'This account does not have host access.', hostAccessDeniedBody: 'Host controls are available only to an authorized host.',
+    hostAccessCheckFailed: 'Host access could not be checked.',
     goToSignIn: 'Sign in to continue', pageNotFound: 'The page is lost in the fog.', back: 'Go back',
     host: 'Host', search: 'Search', filters: 'Filters', anyStatus: 'Any status', recent: 'Recent',
     unavailable: 'Unavailable', fullNote: 'This session has reached capacity.', closedNote: 'Submissions are closed for this session.',
@@ -164,6 +168,8 @@ const copy: Record<Language, Copy> = {
     artistPlaceholder: 'Nom de votre projet', songPlaceholder: 'La chanson que nous devons entendre', urlPlaceholder: 'https://…',
     introCount: 'caractères', selected: 'Sélectionnée', sessionClosed: 'Cette session est fermée aux inscriptions.',
     hostOnly: 'Accès régie requis', hostOnlyBody: 'Connectez-vous pour vérifier les envois et lancer une session.',
+    hostAccessDenied: 'Ce compte n’a pas accès à la régie.', hostAccessDeniedBody: 'Les commandes de la régie sont réservées à l’hôte autorisé.',
+    hostAccessCheckFailed: 'Impossible de vérifier l’accès à la régie.',
     goToSignIn: 'Se connecter pour continuer', pageNotFound: 'La page s’est perdue dans le brouillard.', back: 'Retour',
     host: 'Régie', search: 'Rechercher', filters: 'Filtres', anyStatus: 'Tous les statuts', recent: 'Récentes',
     unavailable: 'Indisponible', fullNote: 'Cette session a atteint sa capacité.', closedNote: 'Les inscriptions sont fermées pour cette session.',
@@ -215,6 +221,8 @@ const copy: Record<Language, Copy> = {
     artistPlaceholder: 'Назва вашого проєкту', songPlaceholder: 'Пісня, яку ми маємо почути', urlPlaceholder: 'https://…',
     introCount: 'символів', selected: 'Обрано', sessionClosed: 'Цю сесію закрито для нових заявок.',
     hostOnly: 'Потрібен доступ ведучого', hostOnlyBody: 'Увійдіть, щоб переглядати заявки і вести LIVE-сесію.',
+    hostAccessDenied: 'Цей обліковий запис не має доступу ведучого.', hostAccessDeniedBody: 'Керування доступне лише авторизованому ведучому.',
+    hostAccessCheckFailed: 'Не вдалося перевірити доступ ведучого.',
     goToSignIn: 'Увійти, щоб продовжити', pageNotFound: 'Сторінка загубилася в тумані.', back: 'Назад',
     host: 'Ведучий', search: 'Пошук', filters: 'Фільтри', anyStatus: 'Будь-який статус', recent: 'Нещодавні',
     unavailable: 'Недоступно', fullNote: 'У цій сесії вже немає вільних місць.', closedNote: 'Прийом заявок на цю сесію закрито.',
@@ -223,7 +231,7 @@ const copy: Record<Language, Copy> = {
   },
 };
 
-const clerkPubKey = publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+const clerkPubKey = publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_GOFL_CLERK_PUBLISHABLE_KEY);
 const clerkProxyUrl =
   import.meta.env.VITE_CLERK_PROXY_URL ||
   (import.meta.env.PROD ? '/api/__clerk' : undefined);
@@ -290,10 +298,10 @@ function LanguageSwitcher({ language, setLanguage, t }: { language: Language; se
 
 function Header({ language, setLanguage, t }: { language: Language; setLanguage: (v: Language) => void; t: (key: string) => string }) {
   const [location] = useLocation();
-  const { isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, hostAccessQuery } = useHostAccess();
   const { signOut } = useClerk();
   const [open, setOpen] = useState(false);
-  const nav = [{ href: '/', key: 'home' }, { href: '/sessions', key: 'sessions' }, { href: '/submit', key: 'submit' }, ...(isSignedIn ? [{ href: '/admin', key: 'admin' }] : [])];
+  const nav = [{ href: '/', key: 'home' }, { href: '/sessions', key: 'sessions' }, { href: '/submit', key: 'submit' }, ...(isLoaded && hostAccessQuery.data?.authorized ? [{ href: '/admin', key: 'admin' }] : [])];
   return <header className="sticky top-0 z-50 border-b border-border/70 bg-background/65 backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,.24)]">
     <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between gap-5 px-4 sm:px-7">
       <Brand compact />
@@ -435,11 +443,26 @@ function Field({ label, value, onChange, placeholder, required, testId, type = '
   return <div><label htmlFor={id} className="mb-2 block text-xs font-bold uppercase tracking-wider text-foreground">{label} {required && <span className="text-accent">*</span>}</label><input id={id} type={type} maxLength={maxLength} required={required} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-md border border-input bg-background/60 px-3 py-3 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20" data-testid={testId} /></div>;
 }
 
-function AuthGate({ children }: { children: ReactNode }) {
+function useHostAccess() {
   const { isLoaded, isSignedIn } = useAuth();
+  const hostAccessQuery = useGetAdminAccess({
+    query: {
+      queryKey: getGetAdminAccessQueryKey(),
+      enabled: isLoaded && isSignedIn === true,
+      retry: false,
+      staleTime: 30_000,
+    },
+  });
+  return { isLoaded, isSignedIn, hostAccessQuery };
+}
+
+function AuthGate({ children }: { children: ReactNode }) {
+  const { isLoaded, isSignedIn, hostAccessQuery } = useHostAccess();
   const { t } = useLanguage();
-  if (!isLoaded) return <Shell><main className="mx-auto max-w-3xl px-4 py-24"><LoadingState t={t} /></main></Shell>;
+  if (!isLoaded || (isSignedIn && hostAccessQuery.isLoading)) return <Shell><main className="mx-auto max-w-3xl px-4 py-24"><LoadingState t={t} /></main></Shell>;
   if (!isSignedIn) return <Shell><main className="mx-auto max-w-xl px-4 py-24 text-center"><ShieldCheck className="mx-auto size-10 text-primary" /><h1 className="mt-6 font-display text-3xl">{t('hostOnly')}</h1><p className="mt-3 text-sm leading-7 text-muted-foreground">{t('hostOnlyBody')}</p><Link href="/sign-in" className="mt-7 inline-flex rounded-md bg-primary px-5 py-3 text-xs font-bold uppercase tracking-wider text-primary-foreground" data-testid="link-gate-sign-in">{t('goToSignIn')}</Link></main></Shell>;
+  if (hostAccessQuery.isError && (hostAccessQuery.error as { status?: number }).status !== 403) return <Shell><main className="mx-auto max-w-xl px-4 py-24 text-center"><AlertCircle className="mx-auto size-10 text-primary" /><h1 className="mt-6 font-display text-3xl">{t('hostAccessCheckFailed')}</h1><button type="button" onClick={() => void hostAccessQuery.refetch()} className="mt-7 inline-flex rounded-md bg-primary px-5 py-3 text-xs font-bold uppercase tracking-wider text-primary-foreground">{t('retry')}</button></main></Shell>;
+  if (!hostAccessQuery.data?.authorized) return <Shell><main className="mx-auto max-w-xl px-4 py-24 text-center"><ShieldCheck className="mx-auto size-10 text-primary" /><h1 className="mt-6 font-display text-3xl">{t('hostAccessDenied')}</h1><p className="mt-3 text-sm leading-7 text-muted-foreground">{t('hostAccessDeniedBody')}</p></main></Shell>;
   return <>{children}</>;
 }
 
@@ -814,7 +837,7 @@ function ClerkProviderWithRoutes() {
 }
 
 function App() {
-  if (!clerkPubKey) throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
+  if (!clerkPubKey) throw new Error('Missing VITE_GOFL_CLERK_PUBLISHABLE_KEY in .env file');
   return <WouterRouter base={basePath}><ClerkProviderWithRoutes /></WouterRouter>;
 }
 

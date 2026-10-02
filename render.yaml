@@ -18,9 +18,9 @@ services:
         value: "true"
       - key: DATABASE_URL
         sync: false
-      - key: CLERK_PUBLISHABLE_KEY
+      - key: VITE_GOFL_CLERK_PUBLISHABLE_KEY
         sync: false
-      - key: CLERK_SECRET_KEY
+      - key: GOFL_CLERK_SECRET_KEY
         sync: false
-      - key: VITE_CLERK_PUBLISHABLE_KEY
-        sync: false # Prompt during Render Blueprint setup
+      - key: GOFL_HOST_EMAILS
+        sync: false

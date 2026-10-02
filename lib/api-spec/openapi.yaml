@@ -105,6 +105,26 @@ paths:
                   $ref: "#/components/schemas/AdminSessionSummary"
         "401":
           description: Sign in required
+  /admin/access:
+    get:
+      operationId: getAdminAccess
+      tags: [admin]
+      summary: Check whether the signed-in user is an authorized host
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: Host access is granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAccessStatus"
+        "401":
+          description: Sign in required
+        "403":
+          description: Signed-in user is not an authorized host
+        "503":
+          description: Host access could not be verified
   /admin/sessions/{sessionId}/queue:
     get:
       operationId: getAdminSessionQueue
@@ -239,6 +259,11 @@ components:
             pending: { type: integer }
             approved: { type: integer }
             played: { type: integer }
+    AdminAccessStatus:
+      type: object
+      required: [authorized]
+      properties:
+        authorized: { type: boolean, const: true }
     AdminQueueSubmission:
       type: object
       required:

@@ -10,6 +10,7 @@ import {
   type Submission,
 } from "@workspace/db";
 import { generateUpcomingSessionInstances } from "../lib/session-schedule";
+import { createRequireHostMiddleware } from "../middlewares/requireHost";
 import { createGatheringRouter } from "./gathering";
 
 const sessionId = "00000000-0000-4000-8000-000000000001";
@@ -264,9 +265,21 @@ function createTestApp(database: FixtureDatabase) {
     Object.defineProperty(req, "auth", { configurable: true, value: authHandler });
     next();
   });
+  const hostAuthorization = createRequireHostMiddleware({
+    getAllowedEmails: () => "host@example.test",
+    getUserById: async (userId) => ({
+      emailAddresses: [
+        {
+          emailAddress:
+            userId === "host_fixture" ? "host@example.test" : "other@example.test",
+          verification: { status: "verified" },
+        },
+      ],
+    }),
+  });
   app.use(
     "/api",
-    createGatheringRouter(database as unknown as typeof db),
+    createGatheringRouter(database as unknown as typeof db, hostAuthorization),
   );
   return app;
 }
@@ -419,6 +432,15 @@ test("host queue reads and status changes remain Clerk-authenticated", async () 
     );
     assert.equal(queueResponse.status, 401);
 
+    const accessResponse = await fetch(`${baseUrl}/api/admin/access`);
+    assert.equal(accessResponse.status, 401);
+
+    const nonHostQueueResponse = await fetch(
+      `${baseUrl}/api/admin/sessions/${sessionId}/queue`,
+      { headers: { "x-test-host": "non_host_fixture" } },
+    );
+    assert.equal(nonHostQueueResponse.status, 403);
+
     const updateResponse = await fetch(
       `${baseUrl}/api/admin/submissions/${existingSubmissionId}`,
       {
@@ -428,6 +450,20 @@ test("host queue reads and status changes remain Clerk-authenticated", async () 
       },
     );
     assert.equal(updateResponse.status, 401);
+    assert.equal(database.submissions[0].status, "pending");
+
+    const nonHostUpdateResponse = await fetch(
+      `${baseUrl}/api/admin/submissions/${existingSubmissionId}`,
+      {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          "x-test-host": "non_host_fixture",
+        },
+        body: JSON.stringify({ status: "approved" }),
+      },
+    );
+    assert.equal(nonHostUpdateResponse.status, 403);
     assert.equal(database.submissions[0].status, "pending");
   });
 });
@@ -446,6 +482,12 @@ for (const [startingStatus, nextStatus] of [
     );
 
     await withApi(database, async (baseUrl) => {
+      const accessResponse = await fetch(`${baseUrl}/api/admin/access`, {
+        headers: { "x-test-host": "host_fixture" },
+      });
+      assert.equal(accessResponse.status, 200);
+      assert.deepEqual(await accessResponse.json(), { authorized: true });
+
       const updateResponse = await fetch(
         `${baseUrl}/api/admin/submissions/${existingSubmissionId}`,
         {

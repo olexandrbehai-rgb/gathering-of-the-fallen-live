@@ -5,10 +5,9 @@
  * authentication on custom domains and .replit.app deployments without
  * requiring CNAME DNS configuration.
  *
- * AUTH CONFIGURATION: To manage users, enable/disable login providers
- * (Google, GitHub, etc.), change app branding, or configure OAuth credentials,
- * use the Auth pane in the workspace toolbar. There is no external Clerk
- * dashboard — all auth configuration is done through the Auth pane.
+  * AUTH CONFIGURATION: This app uses its shared external Clerk project.
+  * Its keys are configured through GOFL_CLERK_SECRET_KEY and
+  * VITE_GOFL_CLERK_PUBLISHABLE_KEY.
  *
  * IMPORTANT:
  * - Only active in production (Clerk proxying doesn't work for dev instances)
@@ -49,9 +48,9 @@ export function clerkProxyMiddleware(): RequestHandler {
     return (_req, _res, next) => next();
   }
 
-  const secretKey = process.env.CLERK_SECRET_KEY;
+  const secretKey = process.env.GOFL_CLERK_SECRET_KEY;
   if (!secretKey) {
-    return (_req, _res, next) => next();
+    throw new Error("GOFL_CLERK_SECRET_KEY must be configured in production.");
   }
 
   return createProxyMiddleware({

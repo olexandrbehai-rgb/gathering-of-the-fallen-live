@@ -1,6 +1,7 @@
 import {
   CreateSubmissionBody,
   CreateSubmissionResponse,
+  GetAdminAccessResponse,
   GetAdminSessionQueueParams,
   GetAdminSessionQueueResponse,
   GetSessionQueuePreviewParams,
@@ -19,12 +20,15 @@ import {
   type Submission,
 } from "@workspace/db";
 import { and, asc, count, eq, gt, inArray, max, sql } from "drizzle-orm";
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type RequestHandler } from "express";
 import { logger } from "../lib/logger";
-import { requireAuth } from "../middlewares/requireAuth";
+import { requireHost } from "../middlewares/requireHost";
 import { generateUpcomingSessionInstances } from "../lib/session-schedule";
 
-export function createGatheringRouter(database: typeof db = db): IRouter {
+export function createGatheringRouter(
+  database: typeof db = db,
+  hostAuthorization: RequestHandler = requireHost,
+): IRouter {
 const router: IRouter = Router();
 
 function safeErrorDetails(
@@ -313,8 +317,16 @@ router.post("/submissions", async (req, res): Promise<void> => {
 });
 
 router.get(
+  "/admin/access",
+  hostAuthorization,
+  (_req, res): void => {
+    res.json(GetAdminAccessResponse.parse({ authorized: true }));
+  },
+);
+
+router.get(
   "/admin/sessions",
-  requireAuth,
+  hostAuthorization,
   async (_req, res): Promise<void> => {
     await ensureUpcomingSessions();
     const now = new Date();
@@ -354,7 +366,7 @@ router.get(
 
 router.get(
   "/admin/sessions/:sessionId/queue",
-  requireAuth,
+  hostAuthorization,
   async (req, res): Promise<void> => {
     const parsedParams = GetAdminSessionQueueParams.safeParse(req.params);
     if (!parsedParams.success) {
@@ -386,7 +398,7 @@ router.get(
 
 router.patch(
   "/admin/submissions/:submissionId",
-  requireAuth,
+  hostAuthorization,
   async (req, res): Promise<void> => {
     const parsedParams = UpdateSubmissionStatusParams.safeParse(req.params);
     const parsedBody = UpdateSubmissionStatusBody.safeParse(req.body);

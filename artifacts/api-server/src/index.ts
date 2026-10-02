@@ -14,6 +14,19 @@ if (!databaseUrl) {
 }
 configureDatabase(databaseUrl);
 
+const clerkPublishableKey = process.env.VITE_GOFL_CLERK_PUBLISHABLE_KEY;
+const clerkSecretKey = process.env.GOFL_CLERK_SECRET_KEY;
+const hostEmails = process.env.GOFL_HOST_EMAILS
+  ?.split(",")
+  .map((email) => email.trim())
+  .filter(Boolean);
+
+if (!clerkPublishableKey || !clerkSecretKey || !hostEmails?.length) {
+  throw new Error(
+    "VITE_GOFL_CLERK_PUBLISHABLE_KEY, GOFL_CLERK_SECRET_KEY, and GOFL_HOST_EMAILS must be configured.",
+  );
+}
+
 const staticDir =
   process.env.SERVE_WEB_DIST === "true"
     ? path.resolve(
@@ -24,8 +37,8 @@ const staticDir =
 
 const app = createApp({
   getClerkKeys: () => ({
-    publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
-    secretKey: process.env.CLERK_SECRET_KEY,
+    publishableKey: clerkPublishableKey,
+    secretKey: clerkSecretKey,
   }),
   ...(staticDir ? { staticDir } : {}),
   clerkProxyMiddleware: clerkProxyMiddleware(),

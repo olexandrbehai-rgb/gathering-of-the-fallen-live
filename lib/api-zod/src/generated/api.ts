@@ -111,6 +111,14 @@ export const ListAdminSessionsResponse = zod.array(ListAdminSessionsResponseItem
 
 
 /**
+ * @summary Check whether the signed-in user is an authorized host
+ */
+export const GetAdminAccessResponse = zod.object({
+  "authorized": zod.literal(true)
+})
+
+
+/**
  * @summary Read a session's complete queue in assigned order
  */
 export const GetAdminSessionQueueParams = zod.object({
