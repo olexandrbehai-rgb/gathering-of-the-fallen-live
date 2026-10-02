@@ -282,7 +282,7 @@ export function MobileExperience() {
         .gm-next-date { margin:9px 0 0; color:hsl(var(--muted-foreground)); font-size:12px; line-height:1.6; }
         .gm-next-bottom { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:14px; padding-top:13px; border-top:1px solid hsl(var(--border)/.7); }
         .gm-next-bottom span { color:hsl(var(--muted-foreground)); font:11px var(--app-font-mono); }
-        .gm-text-action { display:inline-flex; align-items:center; gap:5px; padding:6px 0; border:0; color:hsl(var(--primary)); background:transparent; font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; }
+         .gm-text-action { display:inline-flex; min-height:44px; align-items:center; gap:5px; padding:6px 0; border:0; color:hsl(var(--primary)); background:transparent; font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; }
         .gm-home-section { margin-top:36px; }
         .gm-section-top { display:flex; align-items:end; justify-content:space-between; gap:10px; margin-bottom:14px; }
         .gm-section-top h2 { margin:6px 0 0; font:500 24px/1.2 var(--app-font-serif); }
@@ -379,7 +379,7 @@ export function MobileExperience() {
         .gm-host-links a { display:inline-flex; align-items:center; gap:5px; color:hsl(var(--primary)); font-size:9px; font-weight:800; letter-spacing:.05em; text-decoration:none; text-transform:uppercase; }
         .gm-host-links a:hover { color:hsl(var(--accent)); }
         .gm-row-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:11px; }
-        .gm-action-button { display:inline-flex; min-height:38px; align-items:center; justify-content:center; gap:5px; padding:8px 9px; border:1px solid hsl(var(--border)); border-radius:5px; color:hsl(var(--foreground)); background:transparent; font-size:8px!important; font-weight:800!important; letter-spacing:.035em; line-height:1.25; text-transform:uppercase; cursor:pointer; }
+         .gm-action-button { display:inline-flex; min-height:44px; align-items:center; justify-content:center; gap:5px; padding:8px 9px; border:1px solid hsl(var(--border)); border-radius:5px; color:hsl(var(--foreground)); background:transparent; font-size:8px!important; font-weight:800!important; letter-spacing:.035em; line-height:1.25; text-transform:uppercase; cursor:pointer; }
         .gm-action-approve { border-color:hsl(var(--primary)/.45); color:hsl(var(--primary)); background:hsl(var(--primary)/.08); }
         .gm-action-reject { border-color:hsl(var(--destructive)/.45); color:hsl(var(--destructive)); }
         .gm-action-played { border-color:hsl(var(--chart-3)/.4); color:hsl(var(--chart-3)); background:hsl(var(--chart-3)/.08); }
@@ -445,16 +445,23 @@ export function MobileExperience() {
         }
         @media (min-width:430px) {
           .gm-main { padding-right:23px; padding-left:23px; }
-          .gm-home-hero h1 { font-size:58px; }
+           .gm-home-hero h1 { font-size:48px; }
           .gm-session-card { padding:18px; }
           .gm-header { padding-right:22px; padding-left:22px; }
         }
         @media (max-width:350px) {
           .gm-brand-name { font-size:11px; }
-          .gm-brand-sub { font-size:7px; letter-spacing:.18em; }
+           .gm-brand-sub { display:none; }
           .gm-header { padding-right:11px; padding-left:11px; }
           .gm-preview-label { padding:0 7px; font-size:8px; }
-          .gm-main { padding-right:13px; padding-left:13px; }
+           .gm-hero-actions .gm-button { gap:5px; padding-right:8px; padding-left:8px; font-size:8px!important; letter-spacing:.055em; }
+           .gm-next-bottom { align-items:flex-start; flex-wrap:wrap; }
+           .gm-next-bottom > span,.gm-next-bottom .gm-text-action { flex:none; white-space:nowrap; }
+           .gm-next-bottom .gm-text-action { margin-left:auto; }
+           .gm-main { padding:16px 13px 35px; }
+           .gm-home-hero { padding-top:12px; padding-bottom:18px; }
+           .gm-home-hero h1 { margin-top:15px; }
+           .gm-hero-steps { margin-top:20px; }
           .gm-home-hero h1 { font-size:39px; }
           .gm-session-top { flex-direction:column; }
           .gm-session-top .gm-pill { position:absolute; top:0; right:0; }
