@@ -18,6 +18,18 @@ const languages = [
   {
     code: "en",
     htmlLang: "en",
+    languageLabel: "Language",
+    languageNames: { en: "English", fr: "French", ua: "Ukrainian" },
+    navLabels: { home: "Home", sessions: "Live sessions", submit: "Submit music", host: "Host desk" },
+    fields: {
+      artist: "Artist / band name",
+      song: "Song title",
+      intro: "Short intro for the host",
+      genre: "Genre",
+      country: "Country / region",
+      track: "Track link",
+      session: "Choose a live session",
+    },
     titles: {
       home: "Let the songs",
       sessions: "Choose a live session",
@@ -30,6 +42,18 @@ const languages = [
   {
     code: "fr",
     htmlLang: "fr",
+    languageLabel: "Langue",
+    languageNames: { en: "anglais", fr: "français", ua: "ukrainien" },
+    navLabels: { home: "Accueil", sessions: "Sessions LIVE", submit: "Envoyer une musique", host: "Régie" },
+    fields: {
+      artist: "Nom de l’artiste / groupe",
+      song: "Titre de la chanson",
+      intro: "Courte présentation pour la régie",
+      genre: "Genre",
+      country: "Pays / région",
+      track: "Lien de la piste",
+      session: "Choisir une session LIVE",
+    },
     titles: {
       home: "Que les chansons",
       sessions: "Choisissez une session LIVE",
@@ -42,6 +66,18 @@ const languages = [
   {
     code: "ua",
     htmlLang: "uk",
+    languageLabel: "Мова",
+    languageNames: { en: "англійська", fr: "французька", ua: "українська" },
+    navLabels: { home: "Головна", sessions: "LIVE-сесії", submit: "Надіслати музику", host: "Пульт ведучого" },
+    fields: {
+      artist: "Ім’я артиста / гурту",
+      song: "Назва пісні",
+      intro: "Короткий вступ для ведучого",
+      genre: "Жанр",
+      country: "Країна / регіон",
+      track: "Посилання на трек",
+      session: "Оберіть LIVE-сесію",
+    },
     titles: {
       home: "Нехай пісні",
       sessions: "Оберіть LIVE-сесію",
@@ -168,6 +204,37 @@ class DevTools {
     return response.result.value;
   }
 
+  async pressKey(key, sessionId, shift = false) {
+    const keyDetails = {
+      Tab: { code: "Tab", keyCode: 9 },
+      Enter: { code: "Enter", keyCode: 13, text: "\r" },
+      Space: { code: "Space", key: " ", keyCode: 32 },
+    }[key];
+    if (!keyDetails) throw new Error(`Unsupported test key: ${key}`);
+    const modifiers = shift ? 8 : 0;
+    for (const type of ["keyDown", "keyUp"]) {
+      await this.send(
+        "Input.dispatchKeyEvent",
+        {
+          type,
+          key: keyDetails.key ?? key,
+          code: keyDetails.code,
+          windowsVirtualKeyCode: keyDetails.keyCode,
+          nativeVirtualKeyCode: keyDetails.keyCode,
+          ...(type === "keyDown" && keyDetails.text
+            ? { text: keyDetails.text, unmodifiedText: keyDetails.text }
+            : {}),
+          modifiers,
+        },
+        sessionId,
+      );
+    }
+  }
+
+  async typeText(text, sessionId) {
+    await this.send("Input.insertText", { text }, sessionId);
+  }
+
   close() {
     this.socket.close();
   }
@@ -197,6 +264,345 @@ async function click(selector, devtools, sessionId) {
     `document.querySelector(${JSON.stringify(selector)}).click()`,
     sessionId,
   );
+}
+
+async function focusByKeyboard(selector, devtools, sessionId, reverse = false) {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    await devtools.pressKey("Tab", sessionId, reverse);
+    const focused = await devtools.evaluate(
+      `Boolean(document.activeElement?.matches(${JSON.stringify(selector)}))`,
+      sessionId,
+    );
+    if (focused) return;
+  }
+  assert.fail(
+    `Could not focus ${selector} with ${reverse ? "Shift+Tab" : "Tab"}; keyboard focus may be trapped or the control may not be reachable.`,
+  );
+}
+
+async function assertVisibleKeyboardFocus(selector, devtools, sessionId, description) {
+  const result = await devtools.evaluate(
+    `(() => {
+      const element = document.activeElement;
+      const style = getComputedStyle(element);
+      return {
+        matches: Boolean(element?.matches(${JSON.stringify(selector)})),
+        outlineStyle: style.outlineStyle,
+        outlineWidth: style.outlineWidth,
+      };
+    })()`,
+    sessionId,
+  );
+  assert.equal(result.matches, true, `${description} did not receive keyboard focus`);
+  assert.notEqual(result.outlineStyle, "none", `${description} has no visible keyboard focus outline`);
+  assert.ok(
+    Number.parseFloat(result.outlineWidth) >= 2,
+    `${description} focus outline is too small: ${result.outlineWidth}`,
+  );
+}
+
+async function assertKeyboardLanguageState(devtools, sessionId, language, selectedCode) {
+  const result = await devtools.evaluate(
+    `(() => ({
+      documentLanguage: document.documentElement.lang,
+      groupLabel: document.querySelector('[data-testid="language-switcher"]')?.getAttribute('aria-label'),
+      selected: document.querySelector('[data-testid="language-${selectedCode}"]')?.getAttribute('aria-pressed'),
+      labels: Object.fromEntries(['en', 'fr', 'ua'].map((code) => [
+        code,
+        document.querySelector('[data-testid="language-' + code + '"]')?.getAttribute('aria-label'),
+      ])),
+    }))()`,
+    sessionId,
+  );
+  assert.equal(
+    result.documentLanguage,
+    language.htmlLang,
+    `Keyboard language selection did not set document language to ${language.htmlLang}`,
+  );
+  assert.equal(result.groupLabel, language.languageLabel, "Language choices have no localized group name");
+  assert.equal(result.selected, "true", `Keyboard selection did not select ${selectedCode}`);
+  assert.deepEqual(
+    result.labels,
+    Object.fromEntries(
+      ["en", "fr", "ua"].map((code) => [
+        code,
+        `${language.languageLabel}: ${language.languageNames[code]}`,
+      ]),
+    ),
+    `Language choices do not have useful localized accessible names in ${language.code}`,
+  );
+}
+
+async function assertKeyboardScreen(devtools, sessionId, language, screen, contentScreen = screen) {
+  const result = await devtools.evaluate(
+    `(() => {
+      const navigationButton = document.querySelector('[data-testid="nav-${screen}"]');
+      const main = document.querySelector('[data-testid="mobile-screen-${contentScreen}"]');
+      return {
+        accessibleName: navigationButton?.getAttribute('aria-label'),
+        visibleName: navigationButton?.innerText.trim(),
+        current: navigationButton?.getAttribute('aria-current'),
+        heading: main?.querySelector('h1')?.textContent.trim() || '',
+        documentLanguage: document.documentElement.lang,
+      };
+    })()`,
+    sessionId,
+  );
+  assert.equal(result.accessibleName, language.navLabels[screen], `${screen} navigation has an unclear accessible name`);
+  assert.equal(
+    result.visibleName.toLocaleUpperCase(language.htmlLang),
+    language.navLabels[screen].toLocaleUpperCase(language.htmlLang),
+    `${screen} navigation label is not visible`,
+  );
+  assert.equal(result.current, "page", `${screen} navigation does not expose the current-page state`);
+  assert.equal(result.documentLanguage, language.htmlLang, `Navigation changed the selected language on ${screen}`);
+  assert.ok(
+    result.heading.includes(language.titles[contentScreen]),
+    `${contentScreen} screen was not reached in ${language.code}: ${result.heading}`,
+  );
+}
+
+async function submitKeyboardForm(devtools, sessionId, language) {
+  const values = {
+    artist: "Moon Orchard",
+    song: "Soft Landing",
+    intro: "A short introduction for the host.",
+    genre: "dream-pop",
+    country: "Canada",
+    track: "https://example.com/track",
+  };
+
+  await devtools.evaluate("document.activeElement.blur()", sessionId);
+  for (const [field, value] of Object.entries(values)) {
+    const selector = `[aria-label=${JSON.stringify(language.fields[field])}]`;
+    await focusByKeyboard(selector, devtools, sessionId);
+    await assertVisibleKeyboardFocus(selector, devtools, sessionId, `${field} form field`);
+    await devtools.typeText(value, sessionId);
+    assert.equal(
+      await devtools.evaluate(`document.querySelector(${JSON.stringify(selector)})?.value`, sessionId),
+      value,
+      `Keyboard entry did not update the ${field} field in ${language.code}`,
+    );
+  }
+
+  const sessionSelector = `[aria-label=${JSON.stringify(language.fields.session)}]`;
+  await focusByKeyboard(sessionSelector, devtools, sessionId);
+  await assertVisibleKeyboardFocus(sessionSelector, devtools, sessionId, "Session selector");
+  assert.ok(
+    await devtools.evaluate(`document.querySelector(${JSON.stringify(sessionSelector)})?.value`, sessionId),
+    `No session is selected in ${language.code}`,
+  );
+
+  const rightsSelector = ".gm-submit-form input[type=checkbox]";
+  await focusByKeyboard(rightsSelector, devtools, sessionId);
+  await assertVisibleKeyboardFocus(rightsSelector, devtools, sessionId, "Rights confirmation");
+  await devtools.pressKey("Space", sessionId);
+  assert.equal(
+    await devtools.evaluate(`document.querySelector(${JSON.stringify(rightsSelector)})?.checked`, sessionId),
+    true,
+    `Space did not accept the rights confirmation in ${language.code}`,
+  );
+
+  await focusByKeyboard(".gm-submit-button", devtools, sessionId);
+  await assertVisibleKeyboardFocus(".gm-submit-button", devtools, sessionId, "Submit button");
+  await devtools.pressKey("Enter", sessionId);
+  await waitFor(`${language.code} submission receipt by keyboard`, () =>
+    devtools.evaluate(
+      `document.querySelector('[data-testid="mobile-screen-receipt"]') !== null`,
+      sessionId,
+    ),
+  );
+  const receipt = await devtools.evaluate(
+    `(() => ({
+      heading: document.querySelector('[data-testid="mobile-screen-receipt"] h1')?.textContent.trim(),
+      currentNavigation: document.querySelector('[data-testid="nav-submit"]')?.getAttribute('aria-current'),
+      documentLanguage: document.documentElement.lang,
+      queueNumber: document.querySelector('.gm-receipt-data strong')?.textContent.trim(),
+    }))()`,
+    sessionId,
+  );
+  assert.ok(receipt.heading.includes(language.titles.receipt), `Receipt was not translated in ${language.code}`);
+  assert.equal(receipt.currentNavigation, "page", "Submission receipt does not expose the current navigation state");
+  assert.equal(receipt.documentLanguage, language.htmlLang, "Submission changed the selected language");
+  assert.match(receipt.queueNumber, /^#\d+$/, "Keyboard submission did not create a queue receipt");
+}
+
+async function testKeyboardLanguageAndNavigation(devtools, sessionId, language) {
+  await devtools.evaluate("localStorage.clear()", sessionId);
+  const reloadComplete = devtools.waitForEvent(
+    "Page.loadEventFired",
+    (_params, eventSessionId) => eventSessionId === sessionId,
+  );
+  await devtools.send("Page.reload", { ignoreCache: true }, sessionId);
+  await reloadComplete;
+  await waitFor(`home before ${language.code} keyboard flow`, () =>
+    devtools.evaluate(
+      `document.querySelector('[data-testid="mobile-screen-home"]') !== null`,
+      sessionId,
+    ),
+  );
+
+  await focusByKeyboard('[data-testid="language-en"]', devtools, sessionId);
+  await assertVisibleKeyboardFocus(
+    '[data-testid="language-en"]',
+    devtools,
+    sessionId,
+    "English language button",
+  );
+  await assertKeyboardLanguageState(devtools, sessionId, languages[0], "en");
+
+  for (const code of ["fr", "ua"]) {
+    await focusByKeyboard(`[data-testid="language-${code}"]`, devtools, sessionId);
+    await assertVisibleKeyboardFocus(
+      `[data-testid="language-${code}"]`,
+      devtools,
+      sessionId,
+      `${code} language button`,
+    );
+    await devtools.pressKey("Enter", sessionId);
+    await waitFor(`${code} selected by keyboard`, () =>
+      devtools.evaluate(
+        `document.querySelector('[data-testid="language-${code}"]')?.getAttribute('aria-pressed') === 'true'`,
+        sessionId,
+      ),
+    );
+    await assertKeyboardLanguageState(
+      devtools,
+      sessionId,
+      languages.find((item) => item.code === code),
+      code,
+    );
+  }
+
+  for (const code of ["fr", "en"]) {
+    await focusByKeyboard(`[data-testid="language-${code}"]`, devtools, sessionId, true);
+    await assertVisibleKeyboardFocus(
+      `[data-testid="language-${code}"]`,
+      devtools,
+      sessionId,
+      `${code} language button`,
+    );
+    await devtools.pressKey("Enter", sessionId);
+    await waitFor(`${code} selected by reverse keyboard navigation`, () =>
+      devtools.evaluate(
+        `document.querySelector('[data-testid="language-${code}"]')?.getAttribute('aria-pressed') === 'true'`,
+        sessionId,
+      ),
+    );
+    await assertKeyboardLanguageState(
+      devtools,
+      sessionId,
+      code === "en" ? languages[0] : languages[1],
+      code,
+    );
+  }
+
+  if (language.code !== "en") {
+    await focusByKeyboard(`[data-testid="language-${language.code}"]`, devtools, sessionId);
+    await devtools.pressKey("Enter", sessionId);
+    await waitFor(`${language.code} restored for keyboard navigation`, () =>
+      devtools.evaluate(
+        `document.querySelector('[data-testid="language-${language.code}"]')?.getAttribute('aria-pressed') === 'true'`,
+        sessionId,
+      ),
+    );
+  }
+  await assertKeyboardLanguageState(devtools, sessionId, language, language.code);
+
+  await focusByKeyboard('[data-testid="nav-sessions"]', devtools, sessionId);
+  await assertVisibleKeyboardFocus(
+    '[data-testid="nav-sessions"]',
+    devtools,
+    sessionId,
+    "Sessions navigation button",
+  );
+  await devtools.pressKey("Enter", sessionId);
+  await waitFor(`${language.code} sessions screen by keyboard`, () =>
+    devtools.evaluate(
+      `document.querySelector('[data-testid="mobile-screen-sessions"]') !== null`,
+      sessionId,
+    ),
+  );
+  await assertKeyboardScreen(devtools, sessionId, language, "sessions");
+
+  await focusByKeyboard('[data-testid="nav-submit"]', devtools, sessionId);
+  await assertVisibleKeyboardFocus(
+    '[data-testid="nav-submit"]',
+    devtools,
+    sessionId,
+    "Submit navigation button",
+  );
+  await devtools.pressKey("Enter", sessionId);
+  await waitFor(`${language.code} submit screen by keyboard`, () =>
+    devtools.evaluate(
+      `document.querySelector('[data-testid="mobile-screen-submit"]') !== null`,
+      sessionId,
+    ),
+  );
+  await assertKeyboardScreen(devtools, sessionId, language, "submit");
+  await submitKeyboardForm(devtools, sessionId, language);
+
+  await focusByKeyboard(".gm-receipt-actions .gm-button-outline", devtools, sessionId);
+  await assertVisibleKeyboardFocus(
+    ".gm-receipt-actions .gm-button-outline",
+    devtools,
+    sessionId,
+    "Return-home button",
+  );
+  await devtools.pressKey("Enter", sessionId);
+  await waitFor(`${language.code} home screen after keyboard submission`, () =>
+    devtools.evaluate(
+      `document.querySelector('[data-testid="mobile-screen-home"]') !== null`,
+      sessionId,
+    ),
+  );
+  await assertKeyboardScreen(devtools, sessionId, language, "home");
+
+  await focusByKeyboard('[data-testid="nav-host"]', devtools, sessionId);
+  await assertVisibleKeyboardFocus(
+    '[data-testid="nav-host"]',
+    devtools,
+    sessionId,
+    "Host navigation button",
+  );
+  await devtools.pressKey("Enter", sessionId);
+  await waitFor(`${language.code} host screen by keyboard`, () =>
+    devtools.evaluate(
+      `document.querySelector('[data-testid="mobile-screen-host"]') !== null`,
+      sessionId,
+    ),
+  );
+  await assertKeyboardScreen(devtools, sessionId, language, "host");
+
+  await devtools.evaluate("document.activeElement.blur()", sessionId);
+  await focusByKeyboard(".gm-host-open-live", devtools, sessionId);
+  await assertVisibleKeyboardFocus(".gm-host-open-live", devtools, sessionId, "Open-live button");
+  await devtools.pressKey("Enter", sessionId);
+  await waitFor(`${language.code} live screen by keyboard`, () =>
+    devtools.evaluate(
+      `document.querySelector('[data-testid="mobile-screen-live"]') !== null`,
+      sessionId,
+    ),
+  );
+  await assertKeyboardScreen(devtools, sessionId, language, "host", "live");
+
+  await devtools.evaluate("document.activeElement.blur()", sessionId);
+  await focusByKeyboard('[data-testid="nav-home"]', devtools, sessionId);
+  await assertVisibleKeyboardFocus(
+    '[data-testid="nav-home"]',
+    devtools,
+    sessionId,
+    "Home navigation button",
+  );
+  await devtools.pressKey("Enter", sessionId);
+  await waitFor(`${language.code} home screen by keyboard`, () =>
+    devtools.evaluate(
+      `document.querySelector('[data-testid="mobile-screen-home"]') !== null`,
+      sessionId,
+    ),
+  );
+  await assertKeyboardScreen(devtools, sessionId, language, "home");
+  console.log(`PASS ${language.code.toUpperCase()}: keyboard language switching, navigation, and submission`);
 }
 
 async function inspectScreen(devtools, sessionId, language, screen, width, viewportLabel) {
@@ -414,7 +820,7 @@ async function main() {
       } catch {
         return false;
       }
-    });
+    }, 60000);
 
     devtools = await DevTools.connect(
       `ws://127.0.0.1:${activePort.debugPort}${activePort.socketPath}`,
@@ -465,6 +871,12 @@ async function main() {
           );
           return state.screen && state.language;
         });
+
+        if (deviceWidth === 320 && zoom.factor === 1) {
+          for (const language of languages) {
+            await testKeyboardLanguageAndNavigation(devtools, sessionId, language);
+          }
+        }
 
         await click('[data-testid="language-fr"]', devtools, sessionId);
         const storedLanguage = await devtools.evaluate(

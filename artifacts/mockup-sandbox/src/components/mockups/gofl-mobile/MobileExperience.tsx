@@ -223,6 +223,11 @@ const translations: Record<Language, Record<string, string>> = {
 
 const isLanguage = (value: unknown): value is Language => value === 'en' || value === 'fr' || value === 'ua';
 const translate = (language: Language, key: string) => translations[language][key] || translations.en[key] || key;
+const languageNames: Record<Language, Record<Language, string>> = {
+  en: { en: 'English', fr: 'French', ua: 'Ukrainian' },
+  fr: { en: 'anglais', fr: 'français', ua: 'ukrainien' },
+  ua: { en: 'англійська', fr: 'французька', ua: 'українська' },
+};
 
 function readLanguage(): Language {
   try {
@@ -766,7 +771,7 @@ export function MobileExperience() {
                 className="gm-language-button"
                 type="button"
                 aria-pressed={language === item}
-                aria-label={`${t('language')}: ${item.toUpperCase()}`}
+                aria-label={`${t('language')}: ${languageNames[language][item]}`}
                 data-testid={`language-${item}`}
                 onClick={() => changeLanguage(item)}
               >{item.toUpperCase()}</button>
@@ -1045,7 +1050,7 @@ export function MobileExperience() {
           { id: 'host' as const, label: t('admin'), icon: ShieldCheck },
         ].map(({ id, label, icon: Icon }) => {
           const isCurrent = screen === id || (screen === 'receipt' && id === 'submit') || (screen === 'live' && id === 'host');
-          return <button className={`gm-nav-button ${isCurrent ? 'is-current' : ''}`} key={id} type="button" onClick={() => go(id)} aria-current={isCurrent ? 'page' : undefined} data-testid={`nav-${id}`}>
+          return <button className={`gm-nav-button ${isCurrent ? 'is-current' : ''}`} key={id} type="button" onClick={() => go(id)} aria-label={label} aria-current={isCurrent ? 'page' : undefined} data-testid={`nav-${id}`}>
             <Icon /><span>{label}</span>
           </button>
         })}
