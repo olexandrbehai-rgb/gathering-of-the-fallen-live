@@ -38,6 +38,41 @@ existing production schema. Before the first production run, compare the live
 tables with the snapshot; the baseline intentionally performs no application
 schema validation or creation.
 
+### Render baseline verification
+
+The live Render database was inspected read-only on 2026-10-02 through
+`RENDER_DATABASE_URL`, using a read-only transaction and querying PostgreSQL
+catalog metadata only. The connection URL and application rows were not
+displayed or changed.
+
+The live tables have the same 6 `sessions` columns and 13 `submissions`
+columns as the snapshot, with matching names, types, nullability, and defaults.
+The `sessions` defaults are `id=gen_random_uuid()`, `capacity=30`,
+`is_open=true`, and `created_at=now()`. The `submissions` defaults are
+`id=gen_random_uuid()`, `status='pending'`, and `created_at=now()`; all other
+columns have no default. The enum labels and order match: `session_type` is
+`artist_spotlight`, `genre_showcase`, `weekend_takeover`; `submission_status`
+is `pending`, `approved`, `rejected`, `played`, `skipped`.
+
+The declared indexes match: `sessions_starts_at_unique` (unique on
+`starts_at`), `sessions_starts_at_idx` (`starts_at`),
+`submissions_session_queue_unique` (unique on `session_id, queue_number`),
+and `submissions_session_status_queue_idx` (`session_id, status,
+queue_number`). The live primary-key indexes correspond to the snapshot's
+primary-key columns. The `submissions.session_id` foreign key references
+`sessions.id` with `NO ACTION` on delete and update, as expected, but its live
+name is `submissions_session_id_fkey` rather than the snapshot name
+`submissions_session_id_sessions_id_fk`. This is a name-only difference; the
+constraint is non-deferrable and its relationship and behavior match.
+
+No production schema change is needed to apply the no-op baseline, and none
+was made during this inspection. Preserve the existing foreign key rather
+than dropping and recreating it. Before a future migration needs to alter or
+remove that foreign key, explicitly account for the live constraint name in a
+reviewed versioned migration, after confirming the live schema and arranging
+a current backup. Do not apply migrations while any other schema differences
+remain unexplained.
+
 ## Apply to production
 
 Production changes are applied only when an operator deliberately runs this
