@@ -1,6 +1,7 @@
 import { createInsertSchema } from "drizzle-zod";
 import {
   boolean,
+  foreignKey,
   index,
   integer,
   pgEnum,
@@ -26,9 +27,7 @@ export const submissionsTable = pgTable(
   "submissions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    sessionId: uuid("session_id")
-      .notNull()
-      .references(() => sessionsTable.id),
+    sessionId: uuid("session_id").notNull(),
     queueNumber: integer("queue_number").notNull(),
     artistName: varchar("artist_name", { length: 100 }).notNull(),
     songTitle: varchar("song_title", { length: 120 }).notNull(),
@@ -53,6 +52,11 @@ export const submissionsTable = pgTable(
       table.status,
       table.queueNumber,
     ),
+    foreignKey({
+      name: "submissions_session_id_fkey",
+      columns: [table.sessionId],
+      foreignColumns: [sessionsTable.id],
+    }),
   ],
 );
 

@@ -227,8 +227,8 @@
         }
       },
       "foreignKeys": {
-        "submissions_session_id_sessions_id_fk": {
-          "name": "submissions_session_id_sessions_id_fk",
+        "submissions_session_id_fkey": {
+          "name": "submissions_session_id_fkey",
           "tableFrom": "submissions",
           "tableTo": "sessions",
           "columnsFrom": [
