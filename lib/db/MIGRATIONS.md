@@ -16,6 +16,20 @@
 4. Test the migration against a disposable development database before
    production.
 
+Run the automated PostgreSQL integration test with:
+
+```bash
+pnpm --filter @workspace/db run test:migrations
+```
+
+The test starts its own local, disposable PostgreSQL cluster using `initdb` and
+`pg_ctl`; those tools must be available on `PATH`. It never reads
+`DATABASE_URL` or `RENDER_DATABASE_URL`, and it does not connect to an external
+database. It creates the existing sessions and submissions schema, seeds rows,
+applies the checked-in baseline and a test-only additive migration, and checks
+that the seeded records survive and the migration journal prevents a second
+execution.
+
 The first migration is a no-op baseline for the already-initialized Render
 database. Its snapshot records the schema represented by the current Drizzle
 models; it does not create application tables on a fresh database. Keep this
