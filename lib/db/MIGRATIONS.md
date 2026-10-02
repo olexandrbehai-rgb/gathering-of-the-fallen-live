@@ -27,8 +27,9 @@ The test starts its own local, disposable PostgreSQL cluster using `initdb` and
 `DATABASE_URL` or `RENDER_DATABASE_URL`, and it does not connect to an external
 database. It creates the existing sessions and submissions schema, seeds rows,
 applies the checked-in baseline and a test-only additive migration, and checks
-that the seeded records survive and the migration journal prevents a second
-execution.
+that the seeded records survive, the migration journal prevents a second
+execution, and applied migration hashes match their SQL files. It also verifies
+that changing or removing an applied SQL file is rejected.
 
 The first migration is a no-op baseline for the already-initialized Render
 database. Its snapshot records the schema represented by the current Drizzle
@@ -85,8 +86,13 @@ pnpm --filter @workspace/db run migrate:production
 The command requires the `RENDER_DATABASE_URL` Replit secret to contain the
 external Render PostgreSQL connection URL. The production config rejects
 non-Render endpoints and enforces TLS. It does not print the connection URL.
-The migration command records applied migration versions in Drizzle's own
-migration bookkeeping table.
+Before invoking Drizzle Kit, the command compares every applied migration's
+recorded SHA-256 hash with the checked-in SQL identified by its journal
+timestamp. If an applied migration's SQL is changed or missing, or its
+timestamp is absent or ambiguous in the checked-in journal, the command stops
+without running migrations. Restore the applied migration file; do not rewrite
+historical SQL. The migration command records applied migration versions in
+Drizzle's own migration bookkeeping table.
 
 This command is not part of application startup, the Render build or start
 commands, or the deployment workflow. Do not add automatic migration execution
