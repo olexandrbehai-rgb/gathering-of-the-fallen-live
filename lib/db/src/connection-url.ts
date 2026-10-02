@@ -5,11 +5,12 @@ const tlsRequiredModes = new Set(["require", "verify-ca", "verify-full"]);
  * Render's external Postgres endpoints require TLS. Ensure their URL enables
  * TLS even if a copied connection string omits sslmode.
  */
-export function withRenderExternalPostgresTls(
+export function withRequiredPostgresTls(
   connectionString: string,
+  forceTls = false,
 ): string {
   const url = new URL(connectionString);
-  if (!url.hostname.toLowerCase().endsWith(renderHostSuffix)) {
+  if (!forceTls && !url.hostname.toLowerCase().endsWith(renderHostSuffix)) {
     return connectionString;
   }
 

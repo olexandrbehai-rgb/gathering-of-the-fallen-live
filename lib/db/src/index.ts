@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "./schema";
-import { withRenderExternalPostgresTls } from "./connection-url";
+import { withRequiredPostgresTls } from "./connection-url";
 
 const { Pool } = pg;
 type Database = ReturnType<typeof drizzle<typeof schema>>;
@@ -12,7 +12,7 @@ let configuredConnectionString: string | undefined;
 
 export function configureDatabase(
   connectionString: string,
-  options: { maxConnections?: number } = {},
+  options: { maxConnections?: number; requireTls?: boolean } = {},
 ): void {
   if (!connectionString) {
     throw new Error("A PostgreSQL connection string is required.");
@@ -28,7 +28,10 @@ export function configureDatabase(
   }
 
   poolInstance = new Pool({
-    connectionString: withRenderExternalPostgresTls(connectionString),
+    connectionString: withRequiredPostgresTls(
+      connectionString,
+      options.requireTls,
+    ),
     ...(options.maxConnections ? { max: options.maxConnections } : {}),
   });
   databaseInstance = drizzle(poolInstance, { schema });
@@ -36,7 +39,9 @@ export function configureDatabase(
 }
 
 if (process.env.DATABASE_URL) {
-  configureDatabase(process.env.DATABASE_URL);
+  configureDatabase(process.env.DATABASE_URL, {
+    requireTls: process.env.NODE_ENV === "production",
+  });
 }
 
 export const pool = new Proxy({} as InstanceType<typeof Pool>, {
