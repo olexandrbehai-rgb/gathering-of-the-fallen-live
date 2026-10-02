@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "./schema";
+import { withRenderExternalPostgresTls } from "./connection-url";
 
 const { Pool } = pg;
 type Database = ReturnType<typeof drizzle<typeof schema>>;
@@ -27,7 +28,7 @@ export function configureDatabase(
   }
 
   poolInstance = new Pool({
-    connectionString,
+    connectionString: withRenderExternalPostgresTls(connectionString),
     ...(options.maxConnections ? { max: options.maxConnections } : {}),
   });
   databaseInstance = drizzle(poolInstance, { schema });
