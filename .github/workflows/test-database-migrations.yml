@@ -1,0 +1,75 @@
+name: Test database migrations
+
+on:
+  pull_request:
+    paths:
+      - lib/db/src/schema/**
+      - lib/db/migrations/**
+      - lib/db/test/migrations.integration.test.mjs
+      - lib/db/scripts/migration-integrity.mjs
+      - lib/db/scripts/schema-drift.mjs
+      - lib/db/drizzle.migrations.config.ts
+      - lib/db/package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .github/workflows/test-database-migrations.yml
+
+permissions:
+  contents: read
+
+jobs:
+  migrations:
+    name: Run PostgreSQL migration integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install PostgreSQL server tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends postgresql
+
+          postgres_bin="$(find /usr/lib/postgresql -mindepth 2 -maxdepth 2 \
+            -type d -name bin -print | sort -V | tail -n 1)"
+          if [[ -z "$postgres_bin" ]]; then
+            echo "::error::PostgreSQL server tools were not installed; initdb and pg_ctl are required by the migration integration suite."
+            exit 1
+          fi
+          for tool in initdb pg_ctl; do
+            if [[ ! -x "$postgres_bin/$tool" ]]; then
+              echo "::error::Required PostgreSQL tool '$tool' is missing from $postgres_bin."
+              exit 1
+            fi
+          done
+          echo "$postgres_bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify PostgreSQL tools are available
+        shell: bash
+        run: |
+          set -euo pipefail
+          for tool in initdb pg_ctl; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "::error::Required PostgreSQL tool '$tool' is unavailable on PATH. The migration integration suite needs initdb and pg_ctl."
+              exit 1
+            fi
+          done
+
+      - name: Run migration integration tests against a disposable local database
+        run: pnpm --filter @workspace/db run test:migrations
