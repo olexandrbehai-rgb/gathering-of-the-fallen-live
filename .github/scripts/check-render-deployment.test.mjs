@@ -605,6 +605,27 @@ test("canceled and skipped checks run neither outage alert nor recovery action",
   }
 });
 
+test("checks out the repository before running the smoke-check script", () => {
+  const workflow = readFileSync(workflowPath, "utf8");
+  const smokeJobStart = workflow.indexOf("  smoke-test:\n");
+  const alertJobStart = workflow.indexOf("  alert-maintainers:\n", smokeJobStart);
+  assert.notEqual(smokeJobStart, -1, "Smoke-test job should exist");
+  assert.notEqual(alertJobStart, -1, "Alert job should follow smoke-test job");
+
+  const smokeJob = workflow.slice(smokeJobStart, alertJobStart);
+  const checkoutStep = smokeJob.indexOf("uses: actions/checkout@v4");
+  const scriptStep = smokeJob.indexOf(
+    "run: bash .github/scripts/check-render-deployment.sh",
+  );
+
+  assert.notEqual(checkoutStep, -1, "Smoke-test job should check out source");
+  assert.notEqual(scriptStep, -1, "Smoke-test script should run");
+  assert.ok(
+    checkoutStep < scriptStep,
+    "Repository checkout must precede the smoke-check script",
+  );
+});
+
 test("serializes push and manual checks through the incident update", () => {
   const workflow = readFileSync(workflowPath, "utf8");
 

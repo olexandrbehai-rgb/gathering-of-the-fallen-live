@@ -25,5 +25,3 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-GOFL_HOST_EMAILS = "olexandrbehai@gmail.com"
-VITE_GOFL_CLERK_PUBLISHABLE_KEY = "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_dHJ1c3RlZC1tYXJtb3NldC05MTk5LmNsZXJrLmFjY291bnRzLmRldiQ"

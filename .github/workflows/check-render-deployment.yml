@@ -25,6 +25,9 @@ jobs:
     env:
       RENDER_SERVICE_URL: ${{ vars.RENDER_SERVICE_URL }}
     steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
       - name: Wait for the homepage and health endpoint
         id: smoke_check
         run: bash .github/scripts/check-render-deployment.sh
