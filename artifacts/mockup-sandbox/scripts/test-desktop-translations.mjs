@@ -16,6 +16,7 @@ const previewFiles = [
   "CurrentHost.tsx",
   "CurrentLive.tsx",
 ].map((file) => path.join(previewRoot, file));
+const locales = ["en", "fr", "ua"];
 
 function getPropertyName(property) {
   if (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) {
@@ -62,7 +63,15 @@ function getTranslationCatalogs(sourceFile) {
       ts.isObjectLiteralExpression(catalog),
       `Expected the ${locale} translations to be an object literal`,
     );
-    catalogs.set(locale, new Set(getObjectProperties(catalog).keys()));
+    catalogs.set(
+      locale,
+      new Map(
+        [...getObjectProperties(catalog)].map(([key, value]) => [
+          key,
+          ts.isStringLiteralLike(value) ? value.text : undefined,
+        ]),
+      ),
+    );
   }
   return catalogs;
 }
@@ -153,6 +162,54 @@ async function loadTranslationCoverage() {
   return { catalogs, usedKeys, unresolved };
 }
 
+test("shared Gathering of the Fallen catalogs have identical key sets", async () => {
+  const { catalogs } = await loadTranslationCoverage();
+  const catalogKeys = new Set();
+
+  for (const locale of locales) {
+    const catalog = catalogs.get(locale);
+    assert.ok(catalog, `Missing translation catalog for locale "${locale}"`);
+    for (const key of catalog.keys()) catalogKeys.add(key);
+  }
+
+  const missing = [];
+  for (const locale of locales) {
+    const catalog = catalogs.get(locale);
+    for (const key of catalogKeys) {
+      if (!catalog.has(key)) {
+        missing.push(`Missing translation for locale "${locale}" key "${key}"`);
+      }
+    }
+  }
+
+  assert.deepEqual(missing, [], missing.join("\n"));
+});
+
+test("desktop French and Ukrainian translations are non-empty", async () => {
+  const { catalogs, usedKeys, unresolved } = await loadTranslationCoverage();
+
+  assert.deepEqual(
+    unresolved,
+    [],
+    `Every dynamic translation call must have statically known string-literal keys:\n${unresolved.join("\n")}`,
+  );
+  assert.ok(usedKeys.size > 0, "No translation calls were found in the desktop previews");
+
+  const blank = [];
+  for (const locale of ["fr", "ua"]) {
+    const catalog = catalogs.get(locale);
+    assert.ok(catalog, `Missing translation catalog for locale "${locale}"`);
+    for (const key of usedKeys) {
+      const value = catalog.get(key);
+      if (typeof value !== "string" || value.trim().length === 0) {
+        blank.push(`Blank translation for locale "${locale}" key "${key}"`);
+      }
+    }
+  }
+
+  assert.deepEqual(blank, [], blank.join("\n"));
+});
+
 test("desktop Gathering of the Fallen previews have every translation key", async () => {
   const { catalogs, usedKeys, unresolved } = await loadTranslationCoverage();
 
@@ -164,7 +221,7 @@ test("desktop Gathering of the Fallen previews have every translation key", asyn
   assert.ok(usedKeys.size > 0, "No translation calls were found in the desktop previews");
 
   const missing = [];
-  for (const locale of ["en", "fr", "ua"]) {
+  for (const locale of locales) {
     const catalog = catalogs.get(locale);
     assert.ok(catalog, `Missing translation catalog for locale "${locale}"`);
     for (const key of usedKeys) {

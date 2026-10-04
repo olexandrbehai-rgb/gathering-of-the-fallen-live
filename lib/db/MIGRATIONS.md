@@ -44,9 +44,18 @@ Run the automated PostgreSQL integration test with:
 pnpm --filter @workspace/db run test:migrations
 ```
 
+The production Render database is external and is not versioned in `render.yaml`.
+Its PostgreSQL major version was checked read-only on 2026-10-02 and is 18. The
+GitHub Actions workflow uses PostgreSQL 18 tools from the PostgreSQL apt
+repository and verifies their major version before running the integration test.
+If the production database is upgraded to a different major version, update
+`postgresql-18` and the expected version in
+`.github/workflows/test-database-migrations.yml` to match.
+
 The test starts its own local, disposable PostgreSQL cluster using `initdb` and
-`pg_ctl`; those tools must be available on `PATH`. It never reads
-`DATABASE_URL` or `RENDER_DATABASE_URL`, and it does not connect to an external
+`pg_ctl`; those tools must be available on `PATH`. CI explicitly removes
+`DATABASE_URL` and `RENDER_DATABASE_URL` from the test process. The test uses
+only its temporary Unix-socket cluster and does not connect to an external
 database. It creates the existing sessions and submissions schema, seeds rows,
 applies the checked-in baseline and a test-only additive migration, and checks
 that the seeded records survive, the migration journal prevents a second

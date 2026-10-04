@@ -19,11 +19,15 @@ import {
   type Session,
   type Submission,
 } from "@workspace/db";
-import { and, asc, count, eq, gt, inArray, max, sql } from "drizzle-orm";
+import { and, asc, count, eq, gt, gte, inArray, max, sql } from "drizzle-orm";
 import { Router, type IRouter, type RequestHandler } from "express";
 import { logger } from "../lib/logger";
 import { requireHost } from "../middlewares/requireHost";
-import { generateUpcomingSessionInstances } from "../lib/session-schedule";
+import {
+  generateUpcomingSessionInstances,
+  kyivWallTimeOnDate,
+  legacyTorontoDateAtKyivWallTime,
+} from "../lib/session-schedule";
 
 export function createGatheringRouter(
   database: typeof db = db,
@@ -82,6 +86,7 @@ function sanitizeErrorMessage(message: string): string {
 
 async function ensureUpcomingSessions(): Promise<void> {
   const now = new Date();
+  const localTodayStart = kyivWallTimeOnDate(now, 0);
   const sessions = generateUpcomingSessionInstances(now, 14).map((session) => ({
     ...session,
     capacity: 30,
@@ -97,17 +102,28 @@ async function ensureUpcomingSessions(): Promise<void> {
     await transaction.execute(sql`select pg_advisory_xact_lock(1193051001, 1)`);
 
     const existingSessions = await transaction
-      .select({ startsAt: sessionsTable.startsAt })
+      .select({ id: sessionsTable.id, startsAt: sessionsTable.startsAt })
       .from(sessionsTable)
-      .where(
-        inArray(
-          sessionsTable.startsAt,
-          sessions.map((session) => session.startsAt),
-        ),
-      );
-    const existingStartsAt = new Set(
-      existingSessions.map((session) => session.startsAt.getTime()),
-    );
+      .where(gte(sessionsTable.startsAt, localTodayStart));
+    const existingStartsAt = new Set<number>();
+    for (const existing of existingSessions) {
+      if (existing.startsAt < localTodayStart) continue;
+
+      const alreadyAtKyivSeven =
+        kyivWallTimeOnDate(existing.startsAt, 7).getTime() ===
+        existing.startsAt.getTime();
+      const startsAt = alreadyAtKyivSeven
+        ? existing.startsAt
+        : legacyTorontoDateAtKyivWallTime(existing.startsAt, 7);
+      if (startsAt.getTime() !== existing.startsAt.getTime()) {
+        await transaction
+          .update(sessionsTable)
+          .set({ startsAt })
+          .where(eq(sessionsTable.id, existing.id))
+          .returning({ id: sessionsTable.id });
+      }
+      existingStartsAt.add(startsAt.getTime());
+    }
     const missingSessions = sessions.filter(
       (session) => !existingStartsAt.has(session.startsAt.getTime()),
     );

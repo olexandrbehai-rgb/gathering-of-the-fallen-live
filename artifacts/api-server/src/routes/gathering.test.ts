@@ -9,7 +9,11 @@ import {
   type Session,
   type Submission,
 } from "@workspace/db";
-import { generateUpcomingSessionInstances } from "../lib/session-schedule";
+import {
+  generateUpcomingSessionInstances,
+  legacyTorontoDateAtKyivWallTime,
+  legacyTorontoWallTimeOnDate,
+} from "../lib/session-schedule";
 import { createRequireHostMiddleware } from "../middlewares/requireHost";
 import { createGatheringRouter } from "./gathering";
 
@@ -198,6 +202,19 @@ class FixtureDatabase {
         return this;
       },
       returning: async () => {
+        if (table === sessionsTable) {
+          const startsAt = patch.startsAt as Date;
+          const session = database.sessions.find(
+            (candidate) =>
+              candidate.startsAt.getTime() !== startsAt.getTime() &&
+              legacyTorontoDateAtKyivWallTime(candidate.startsAt, 7).getTime() ===
+                startsAt.getTime(),
+          );
+          assert.ok(session);
+          session.startsAt = startsAt;
+          return [session];
+        }
+
         assert.equal(table, submissionsTable);
         const current = database.submissions[0];
         if (!current) return [];
@@ -314,6 +331,31 @@ const submissionInput = {
   trackUrl: "https://open.spotify.com/track/fixture",
   rightsAccepted: true,
 };
+
+test("moves existing upcoming sessions to 7 AM without replacing the session", async () => {
+  const oldStartsAt = legacyTorontoWallTimeOnDate(
+    new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
+    20,
+  );
+  const originalSession = makeSession({ startsAt: oldStartsAt });
+  const database = new FixtureDatabase([originalSession], [], true);
+
+  await withApi(database, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/sessions`);
+    assert.equal(response.status, 200);
+  });
+
+  const movedSession = database.sessions.find(
+    (session) => session.id === originalSession.id,
+  );
+  assert.ok(movedSession);
+  assert.equal(
+    movedSession.startsAt.getTime(),
+    legacyTorontoDateAtKyivWallTime(oldStartsAt, 7).getTime(),
+  );
+  assert.equal(movedSession.sessionType, originalSession.sessionType);
+  assert.equal(movedSession.id, originalSession.id);
+});
 
 test("upcoming sessions seed without a starts_at conflict target and remain idempotent", async () => {
   const scheduledSessions = generateUpcomingSessionInstances(new Date(), 14);

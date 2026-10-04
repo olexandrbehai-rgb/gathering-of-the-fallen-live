@@ -27,6 +27,7 @@ const languages = [
       intro: "Short intro for the host",
       genre: "Genre",
       country: "Country / region",
+      social: "Social link",
       track: "Track link",
       session: "Choose a live session",
     },
@@ -37,6 +38,11 @@ const languages = [
       receipt: "You are in the room.",
       host: "Host desk",
       live: "Live mode",
+    },
+    validationMessages: {
+      artist: "Artist / band name: Please fill in this field.",
+      intro: "Short intro for the host: Please fill in this field.",
+      rights: "Confirm the rights to this track before submitting.",
     },
   },
   {
@@ -51,6 +57,7 @@ const languages = [
       intro: "Courte présentation pour la régie",
       genre: "Genre",
       country: "Pays / région",
+      social: "Lien social",
       track: "Lien de la piste",
       session: "Choisir une session LIVE",
     },
@@ -61,6 +68,11 @@ const languages = [
       receipt: "Vous êtes dans la salle.",
       host: "Régie",
       live: "Mode LIVE",
+    },
+    validationMessages: {
+      artist: "Nom de l’artiste / groupe: Veuillez renseigner ce champ.",
+      intro: "Courte présentation pour la régie: Veuillez renseigner ce champ.",
+      rights: "Confirmez les droits sur cette piste avant l’envoi.",
     },
   },
   {
@@ -75,6 +87,7 @@ const languages = [
       intro: "Короткий вступ для ведучого",
       genre: "Жанр",
       country: "Країна / регіон",
+      social: "Соціальне посилання",
       track: "Посилання на трек",
       session: "Оберіть LIVE-сесію",
     },
@@ -85,6 +98,11 @@ const languages = [
       receipt: "Ви в кімнаті.",
       host: "Пульт ведучого",
       live: "LIVE-режим",
+    },
+    validationMessages: {
+      artist: "Ім’я артиста / гурту: Заповніть це поле.",
+      intro: "Короткий вступ для ведучого: Заповніть це поле.",
+      rights: "Підтвердьте права на цей трек перед надсиланням.",
     },
   },
 ];
@@ -209,6 +227,7 @@ class DevTools {
       Tab: { code: "Tab", keyCode: 9 },
       Enter: { code: "Enter", keyCode: 13, text: "\r" },
       Space: { code: "Space", key: " ", keyCode: 32 },
+      ArrowDown: { code: "ArrowDown", keyCode: 40 },
     }[key];
     if (!keyDetails) throw new Error(`Unsupported test key: ${key}`);
     const modifiers = shift ? 8 : 0;
@@ -301,6 +320,31 @@ async function assertVisibleKeyboardFocus(selector, devtools, sessionId, descrip
   );
 }
 
+async function assertKeyboardValidationFocus(
+  selector,
+  expectedMessage,
+  devtools,
+  sessionId,
+  description,
+) {
+  const result = await devtools.evaluate(
+    `(() => ({
+      matches: Boolean(document.activeElement?.matches(${JSON.stringify(selector)})),
+      validationMessage: document.activeElement?.validationMessage,
+      receiptVisible: Boolean(document.querySelector('[data-testid="mobile-screen-receipt"]')),
+    }))()`,
+    sessionId,
+  );
+  assert.equal(result.matches, true, `${description} did not receive focus after invalid submission`);
+  assert.equal(
+    result.validationMessage,
+    expectedMessage,
+    `${description} did not show the expected translated browser validation message`,
+  );
+  assert.equal(result.receiptVisible, false, `An incomplete ${description} submission reached the receipt`);
+  await assertVisibleKeyboardFocus(selector, devtools, sessionId, description);
+}
+
 async function assertKeyboardLanguageState(devtools, sessionId, language, selectedCode) {
   const result = await devtools.evaluate(
     `(() => ({
@@ -372,8 +416,26 @@ async function submitKeyboardForm(devtools, sessionId, language) {
     track: "https://example.com/track",
   };
 
+  await focusByKeyboard(".gm-submit-button", devtools, sessionId);
+  await assertVisibleKeyboardFocus(
+    ".gm-submit-button",
+    devtools,
+    sessionId,
+    "Submit button with an incomplete form",
+  );
+  await devtools.pressKey("Enter", sessionId);
+  const artistSelector = `[aria-label=${JSON.stringify(language.fields.artist)}]`;
+  await assertKeyboardValidationFocus(
+    artistSelector,
+    language.validationMessages.artist,
+    devtools,
+    sessionId,
+    `${language.code} artist field`,
+  );
+
   await devtools.evaluate("document.activeElement.blur()", sessionId);
   for (const [field, value] of Object.entries(values)) {
+    if (field === "intro") continue;
     const selector = `[aria-label=${JSON.stringify(language.fields[field])}]`;
     await focusByKeyboard(selector, devtools, sessionId);
     await assertVisibleKeyboardFocus(selector, devtools, sessionId, `${field} form field`);
@@ -393,14 +455,50 @@ async function submitKeyboardForm(devtools, sessionId, language) {
     `No session is selected in ${language.code}`,
   );
 
+  await focusByKeyboard(".gm-submit-button", devtools, sessionId);
+  await assertVisibleKeyboardFocus(
+    ".gm-submit-button",
+    devtools,
+    sessionId,
+    "Submit button without an introduction",
+  );
+  await devtools.pressKey("Enter", sessionId);
+  const introSelector = `[aria-label=${JSON.stringify(language.fields.intro)}]`;
+  await assertKeyboardValidationFocus(
+    introSelector,
+    language.validationMessages.intro,
+    devtools,
+    sessionId,
+    `${language.code} introduction`,
+  );
+  await devtools.typeText(values.intro, sessionId);
+  assert.equal(
+    await devtools.evaluate(`document.querySelector(${JSON.stringify(introSelector)})?.value`, sessionId),
+    values.intro,
+    `Keyboard entry did not complete the introduction in ${language.code}`,
+  );
+
   const rightsSelector = ".gm-submit-form input[type=checkbox]";
-  await focusByKeyboard(rightsSelector, devtools, sessionId);
-  await assertVisibleKeyboardFocus(rightsSelector, devtools, sessionId, "Rights confirmation");
+  await focusByKeyboard(".gm-submit-button", devtools, sessionId);
+  await assertVisibleKeyboardFocus(
+    ".gm-submit-button",
+    devtools,
+    sessionId,
+    "Submit button without rights confirmation",
+  );
+  await devtools.pressKey("Enter", sessionId);
+  await assertKeyboardValidationFocus(
+    rightsSelector,
+    language.validationMessages.rights,
+    devtools,
+    sessionId,
+    `${language.code} rights confirmation`,
+  );
   await devtools.pressKey("Space", sessionId);
   assert.equal(
     await devtools.evaluate(`document.querySelector(${JSON.stringify(rightsSelector)})?.checked`, sessionId),
     true,
-    `Space did not accept the rights confirmation in ${language.code}`,
+    `Space did not accept the rights confirmation after validation in ${language.code}`,
   );
 
   await focusByKeyboard(".gm-submit-button", devtools, sessionId);
@@ -425,6 +523,178 @@ async function submitKeyboardForm(devtools, sessionId, language) {
   assert.equal(receipt.currentNavigation, "page", "Submission receipt does not expose the current navigation state");
   assert.equal(receipt.documentLanguage, language.htmlLang, "Submission changed the selected language");
   assert.match(receipt.queueNumber, /^#\d+$/, "Keyboard submission did not create a queue receipt");
+}
+
+async function testKeyboardLanguageChangeDuringSubmission(devtools, sessionId) {
+  await devtools.evaluate("localStorage.clear()", sessionId);
+  const reloadComplete = devtools.waitForEvent(
+    "Page.loadEventFired",
+    (_params, eventSessionId) => eventSessionId === sessionId,
+  );
+  await devtools.send("Page.reload", { ignoreCache: true }, sessionId);
+  await reloadComplete;
+  await waitFor("home before in-progress submission language change", () =>
+    devtools.evaluate(
+      `document.querySelector('[data-testid="mobile-screen-home"]') !== null`,
+      sessionId,
+    ),
+  );
+
+  const english = languages.find((language) => language.code === "en");
+  const french = languages.find((language) => language.code === "fr");
+  await focusByKeyboard('[data-testid="nav-submit"]', devtools, sessionId);
+  await assertVisibleKeyboardFocus(
+    '[data-testid="nav-submit"]',
+    devtools,
+    sessionId,
+    "Submit navigation button before language change",
+  );
+  await devtools.pressKey("Enter", sessionId);
+  await waitFor("English submission form before changing language", () =>
+    devtools.evaluate(
+      `document.querySelector('[data-testid="mobile-screen-submit"]') !== null`,
+      sessionId,
+    ),
+  );
+
+  const values = {
+    artist: "Moon Orchard",
+    song: "Soft Landing",
+    intro: "A short introduction for the host.",
+    genre: "dream-pop",
+    country: "Canada",
+    social: "https://example.com/moon-orchard",
+    track: "https://example.com/track",
+  };
+
+  await devtools.evaluate("document.activeElement.blur()", sessionId);
+  for (const [field, value] of Object.entries(values)) {
+    const selector = `[aria-label=${JSON.stringify(english.fields[field])}]`;
+    await focusByKeyboard(selector, devtools, sessionId);
+    await assertVisibleKeyboardFocus(selector, devtools, sessionId, `${field} form field`);
+    await devtools.typeText(value, sessionId);
+    assert.equal(
+      await devtools.evaluate(`document.querySelector(${JSON.stringify(selector)})?.value`, sessionId),
+      value,
+      `Keyboard entry did not update the ${field} field before changing language`,
+    );
+  }
+
+  const sessionSelector = `[aria-label=${JSON.stringify(english.fields.session)}]`;
+  await focusByKeyboard(sessionSelector, devtools, sessionId);
+  await assertVisibleKeyboardFocus(sessionSelector, devtools, sessionId, "Session selector");
+  const originalSession = await devtools.evaluate(
+    `document.querySelector(${JSON.stringify(sessionSelector)})?.value`,
+    sessionId,
+  );
+  await devtools.pressKey("ArrowDown", sessionId);
+  await devtools.pressKey("Enter", sessionId);
+  const chosenSession = await devtools.evaluate(
+    `document.querySelector(${JSON.stringify(sessionSelector)})?.value`,
+    sessionId,
+  );
+  assert.notEqual(chosenSession, originalSession, "Keyboard did not choose a different submission session");
+  assert.equal(chosenSession, "session-02", "Keyboard did not select the second open session");
+
+  const rightsSelector = ".gm-submit-form input[type=checkbox]";
+  await focusByKeyboard(rightsSelector, devtools, sessionId);
+  await assertVisibleKeyboardFocus(rightsSelector, devtools, sessionId, "Rights confirmation");
+  await devtools.pressKey("Space", sessionId);
+  assert.equal(
+    await devtools.evaluate(`document.querySelector(${JSON.stringify(rightsSelector)})?.checked`, sessionId),
+    true,
+    "Keyboard did not accept the rights confirmation before changing language",
+  );
+
+  await focusByKeyboard('[data-testid="language-fr"]', devtools, sessionId, true);
+  await assertVisibleKeyboardFocus(
+    '[data-testid="language-fr"]',
+    devtools,
+    sessionId,
+    "French language button reached from the submission form",
+  );
+  await devtools.pressKey("Enter", sessionId);
+  await waitFor("French selected while submission is in progress", () =>
+    devtools.evaluate(
+      `document.documentElement.lang === "fr" && document.querySelector('[data-testid="language-fr"]')?.getAttribute('aria-pressed') === 'true'`,
+      sessionId,
+    ),
+  );
+
+  const preserved = await devtools.evaluate(
+    `(() => {
+      const readValue = (label) => document.querySelector('[aria-label=' + JSON.stringify(label) + ']')?.value;
+      const readLabel = (label) => document.querySelector('[aria-label=' + JSON.stringify(label) + ']')
+        ?.closest('.gm-field')?.querySelector('.gm-label')?.innerText.trim();
+      return {
+        documentLanguage: document.documentElement.lang,
+        heading: document.querySelector('[data-testid="mobile-screen-submit"] h1')?.textContent.trim(),
+        artist: readValue(${JSON.stringify(french.fields.artist)}),
+        song: readValue(${JSON.stringify(french.fields.song)}),
+        intro: readValue(${JSON.stringify(french.fields.intro)}),
+        genre: readValue(${JSON.stringify(french.fields.genre)}),
+        country: readValue(${JSON.stringify(french.fields.country)}),
+        social: readValue(${JSON.stringify(french.fields.social)}),
+        track: readValue(${JSON.stringify(french.fields.track)}),
+        session: readValue(${JSON.stringify(french.fields.session)}),
+        labels: {
+          artist: readLabel(${JSON.stringify(french.fields.artist)}),
+          song: readLabel(${JSON.stringify(french.fields.song)}),
+          intro: readLabel(${JSON.stringify(french.fields.intro)}),
+          genre: readLabel(${JSON.stringify(french.fields.genre)}),
+          country: readLabel(${JSON.stringify(french.fields.country)}),
+          social: readLabel(${JSON.stringify(french.fields.social)}),
+          track: readLabel(${JSON.stringify(french.fields.track)}),
+          session: document.querySelector('[aria-label=' + JSON.stringify(${JSON.stringify(french.fields.session)}) + ']')
+            ?.closest('.gm-field')?.querySelector('.gm-label')?.innerText.trim(),
+        },
+        rightsAccepted: document.querySelector('.gm-submit-form input[type="checkbox"]')?.checked,
+      };
+    })()`,
+    sessionId,
+  );
+  assert.equal(preserved.documentLanguage, french.htmlLang, "Changing language did not update the document language");
+  assert.ok(
+    preserved.heading.includes(french.titles.submit),
+    `Submission heading did not update to French: ${preserved.heading}`,
+  );
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(values).map(([field, value]) => [field, preserved[field]])),
+    values,
+    "Changing language cleared or changed submission details",
+  );
+  assert.equal(preserved.session, chosenSession, "Changing language changed the selected session");
+  assert.equal(preserved.rightsAccepted, true, "Changing language cleared rights confirmation");
+  for (const [field, label] of Object.entries(french.fields)) {
+    assert.ok(
+      preserved.labels[field].toLocaleUpperCase(french.htmlLang).includes(label.toLocaleUpperCase(french.htmlLang)),
+      `${field} label did not update to French: ${preserved.labels[field]}`,
+    );
+  }
+
+  await focusByKeyboard(".gm-submit-button", devtools, sessionId);
+  await assertVisibleKeyboardFocus(".gm-submit-button", devtools, sessionId, "French submit button");
+  await devtools.pressKey("Enter", sessionId);
+  await waitFor("French receipt after changing language during submission", () =>
+    devtools.evaluate(
+      `document.querySelector('[data-testid="mobile-screen-receipt"]') !== null`,
+      sessionId,
+    ),
+  );
+  const receipt = await devtools.evaluate(
+    `(() => ({
+      heading: document.querySelector('[data-testid="mobile-screen-receipt"] h1')?.textContent.trim(),
+      body: document.querySelector('.gm-receipt-copy')?.textContent.trim(),
+      documentLanguage: document.documentElement.lang,
+      queueNumber: document.querySelector('.gm-receipt-data strong')?.textContent.trim(),
+    }))()`,
+    sessionId,
+  );
+  assert.ok(receipt.heading.includes(french.titles.receipt), "Receipt was not translated to the chosen language");
+  assert.equal(receipt.documentLanguage, french.htmlLang, "Receipt document language changed after submission");
+  assert.ok(receipt.body.includes("Gardez ce reçu"), "Receipt body was not translated to French");
+  assert.match(receipt.queueNumber, /^#\d+$/, "Submission did not create a receipt after changing language");
+  console.log("PASS keyboard: submission details, session, and rights survive switching to French");
 }
 
 async function testKeyboardLanguageAndNavigation(devtools, sessionId, language) {
@@ -876,6 +1146,7 @@ async function main() {
           for (const language of languages) {
             await testKeyboardLanguageAndNavigation(devtools, sessionId, language);
           }
+          await testKeyboardLanguageChangeDuringSubmission(devtools, sessionId);
         }
 
         await click('[data-testid="language-fr"]', devtools, sessionId);

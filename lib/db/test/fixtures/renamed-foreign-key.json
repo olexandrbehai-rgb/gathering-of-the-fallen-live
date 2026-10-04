@@ -1,0 +1,5 @@
+{
+  "schemaFile": "submissions.ts",
+  "originalName": "submissions_session_id_fkey",
+  "renamedName": "submissions_session_id_renamed_fixture_fkey"
+}

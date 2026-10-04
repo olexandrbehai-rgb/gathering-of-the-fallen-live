@@ -1,0 +1,6 @@
+{
+  "schemaFile": "sessions.ts",
+  "indexName": "sessions_starts_at_unique",
+  "originalColumn": "startsAt",
+  "changedColumn": "capacity"
+}

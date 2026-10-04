@@ -1,252 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import {
-  ArrowLeft, ArrowRight, AudioLines, CalendarDays, Check, CheckCircle2,
-  CircleHelp, ExternalLink, Headphones, ListMusic, Pause, Play, Radio, Send,
-  ShieldCheck, SkipForward, Sparkles, X,
-} from 'lucide-react';
-import '../gofl-current/_group.css';
-import {
-  queueFixture, sessionFixture,
-  type GoFLQueueItem, type GoFLSession,
-} from '../gofl-current/_shared';
-
-type Screen = 'home' | 'sessions' | 'submit' | 'receipt' | 'host' | 'live';
-type Language = 'en' | 'fr' | 'ua';
-type SubmissionForm = {
-  artistName: string;
-  songTitle: string;
-  intro: string;
-  genre: string;
-  country: string;
-  socialUrl: string;
-  trackUrl: string;
-};
-
-const blankForm: SubmissionForm = {
-  artistName: '', songTitle: '', intro: '', genre: '', country: '', socialUrl: '', trackUrl: '',
-};
-
-const translations: Record<Language, Record<string, string>> = {
-  en: {
-    home: 'Home', sessions: 'Live sessions', submit: 'Submit music', admin: 'Host desk', live: 'Live mode',
-    signIn: 'Sign in', nextSession: 'Next session', liveNow: 'Live now', open: 'Open for submissions',
-    closed: 'Closed', full: 'Full', viewSessions: 'View sessions', submitCta: 'Send a track to the next room',
-    submitNote: 'No gatekeeping. No inbox chasing. Just a song and a place in the night.',
-    heroEyebrow: 'Independent music · live sessions · rising together', heroTitle: 'Let the songs\nfind the light.',
-    heroBody: 'Gathering of the Fallen LIVE is a self-service listening room for artists making beautiful noise at the edge of the map.',
-    browse: 'Browse sessions', hostLogin: 'Host sign in', queuePreview: 'Queue preview', tonight: 'Next on air',
-    spaces: 'spaces left', people: 'artists registered', allGenres: 'All genres', join: 'Join this session',
-    details: 'Session details', howItWorks: 'How the room works', step1: 'Send your song',
-    step1Body: 'Drop a link and tell the host what they are about to hear.', step2: 'Choose a night',
-    step2Body: 'Pick an open session. Your place in the queue is held instantly.', step3: 'Get played LIVE',
-    step3Body: 'The host moves through the room in order. You listen with everyone.',
-    sessionsTitle: 'Choose a live session', sessionsBody: 'Find a room with space for your sound. Every session is hosted, human, and in order.',
-    capacity: 'capacity', registered: 'registered', availability: 'availability', noSessions: 'No sessions are open right now.',
-    noSessionsBody: 'Check back soon for the next room in the calendar.', refresh: 'Refresh',
-    submitTitle: 'Put your song in the room', submitBody: 'A short introduction helps the host make space for the right feeling.',
-    artist: 'Artist / band name', song: 'Song title', intro: 'Short intro for the host',
-    introHint: 'Tell us what this song carries, or what you want the room to know.', genre: 'Genre',
-    country: 'Country / region', social: 'Social link', track: 'Track link',
-    trackHint: 'Spotify, SoundCloud, YouTube, Bandcamp, or another playable link.',
-    chooseSession: 'Choose a live session', rights: 'I confirm I own or control the rights to this track and allow it to be played in the livestream.',
-    sendTrack: 'Submit track', submitting: 'Sending into the room…', required: 'Required', optional: 'Optional',
-    receiptTitle: 'You are in the room.', receiptBody: 'Keep this receipt. The host will review the queue before going live.',
-    queueNumber: 'Queue number', status: 'Status', submitted: 'Submitted', returnHome: 'Back to home',
-    hostTitle: 'Host desk', hostBody: 'Review the room once. Then let the queue move itself.',
-    pending: 'Pending', approved: 'Approved', played: 'Played', waiting: 'Waiting', rejected: 'Rejected', skipped: 'Skipped',
-    selectSession: 'Select a session', noAdminSessions: 'No hosted sessions found.', queue: 'Queue', all: 'All',
-    review: 'Review', approve: 'Approve', reject: 'Reject', markPlayed: 'Mark played', skip: 'Skip',
-    undoPlayed: 'Return to queue', play: 'Play', pause: 'Pause', next: 'Next', nowPlaying: 'Now playing',
-    upcoming: 'Up next', trackOf: 'Track', hostGuide: 'Host guide', guide1: 'Read the intro',
-    guide2: 'Press play', guide3: 'Move next', guide4: 'Mark played',
-    guideBody1: 'Take a quick look at the artist and the blurb.', guideBody2: 'Start the track on stream.',
-    guideBody3: 'Keep the order moving.', guideBody4: 'Confirm the track has been heard.',
-    emptyQueue: 'The queue is quiet.', emptyQueueBody: 'Approved artists will appear here in assigned order.',
-    openLink: 'Open track link', audioFallback: 'This link cannot play inline. Open it in a new tab.',
-    embeddedPlayer: 'Embedded track player', menu: 'Menu', close: 'Close', language: 'Language',
-    available: 'available', artistSpotlight: 'Artist spotlight', genreShowcase: 'Genre showcase',
-    weekendTakeover: 'Weekend takeover', selected: 'Selected', sessionClosed: 'This session is closed for submissions.',
-    countryPlaceholder: 'Canada, Ukraine, United Kingdom…', genrePlaceholder: 'Post-rock, metal, darkwave…',
-    artistPlaceholder: 'Your artist name', songPlaceholder: 'The song we should hear', urlPlaceholder: 'https://…',
-    introCount: 'characters', hostOnly: 'Host access required', hostOnlyBody: 'Sign in to review submissions and run a live session.',
-    goToSignIn: 'Sign in to continue', host: 'Host', unavailable: 'Unavailable',
-    fullNote: 'This session has reached capacity.', closedNote: 'Submissions are closed for this session.',
-    trackLinkOnly: 'Submit a listening link. MP3 uploads are not supported.',
-    requiredValidation: 'Please fill in this field.', invalidUrlValidation: 'Enter a valid URL.',
-    mainNav: 'Main navigation', footerTag: 'Independent music · Real people · Live rooms',
-    hostPreview: 'Host preview', publicPreview: 'Public preview', hostPreviewShort: 'Host', publicPreviewShort: 'Public',
-    backToPublic: 'Return to public preview',
-    openHostPreview: 'Open host preview', localPreview: 'Local preview only · no sign-in or backend actions.',
-    onAir: 'On air', brandHome: 'Gathering of the Fallen LIVE — Home', capacityProgress: 'registered / capacity',
-    queueTrackLabel: 'Queue position {number}: {song} by {artist}',
-    artistSpotlightBody: 'A mix of genres, featuring emerging artists and new sounds.',
-    genreShowcaseBody: 'Rotating genres each week: rock, metal, alternative, and more.',
-    weekendTakeoverBody: 'A high-energy session to close the week with the best in independent music.',
-  },
-  fr: {
-    home: 'Accueil', sessions: 'Sessions LIVE', submit: 'Envoyer une musique', admin: 'Régie', live: 'Mode LIVE',
-    signIn: 'Se connecter', nextSession: 'Prochaine session', liveNow: 'En direct', open: 'Inscriptions ouvertes',
-    closed: 'Fermée', full: 'Complète', viewSessions: 'Voir les sessions',
-    submitCta: 'Envoyer une piste à la prochaine salle',
-    submitNote: 'Pas de porte fermée. Pas de relance. Seulement une chanson et une place dans la nuit.',
-    heroEyebrow: 'Musique indépendante · sessions live · grandir ensemble',
-    heroTitle: 'Que les chansons\ntrouvent la lumière.',
-    heroBody: 'Gathering of the Fallen LIVE est une salle d’écoute pour les artistes qui créent un bruit magnifique au bord de la carte.',
-    browse: 'Parcourir les sessions', hostLogin: 'Connexion régie', queuePreview: 'Aperçu de la file',
-    tonight: 'Prochaine mise en ondes', spaces: 'places libres', people: 'artistes inscrits', allGenres: 'Tous les genres',
-    join: 'Rejoindre cette session', details: 'Détails de la session', howItWorks: 'Comment ça marche',
-    step1: 'Envoyez votre chanson', step1Body: 'Ajoutez un lien et dites à la régie ce qu’elle va entendre.',
-    step2: 'Choisissez une soirée', step2Body: 'Choisissez une session ouverte. Votre place est gardée instantanément.',
-    step3: 'Passez en LIVE', step3Body: 'La régie avance dans l’ordre. Vous écoutez avec tout le monde.',
-    sessionsTitle: 'Choisissez une session LIVE',
-    sessionsBody: 'Trouvez une salle pour votre son. Chaque session est humaine, encadrée et ordonnée.',
-    capacity: 'capacité', registered: 'inscrits', availability: 'disponibilité',
-    noSessions: 'Aucune session ouverte pour le moment.', noSessionsBody: 'Revenez bientôt pour la prochaine soirée.',
-    refresh: 'Actualiser', submitTitle: 'Placez votre chanson dans la salle',
-    submitBody: 'Une courte introduction aide la régie à créer le bon moment.',
-    artist: 'Nom de l’artiste / groupe', song: 'Titre de la chanson', intro: 'Courte présentation pour la régie',
-    introHint: 'Dites-nous ce que cette chanson porte, ou ce que la salle doit savoir.', genre: 'Genre',
-    country: 'Pays / région', social: 'Lien social', track: 'Lien de la piste',
-    trackHint: 'Spotify, SoundCloud, YouTube, Bandcamp ou autre lien lisible.',
-    chooseSession: 'Choisir une session LIVE',
-    rights: 'Je confirme détenir les droits de cette piste et autorise sa diffusion pendant le live.',
-    sendTrack: 'Envoyer la piste', submitting: 'Envoi dans la salle…', required: 'Requis', optional: 'Facultatif',
-    receiptTitle: 'Vous êtes dans la salle.', receiptBody: 'Gardez ce reçu. La régie vérifiera la file avant le direct.',
-    queueNumber: 'Numéro de file', status: 'Statut', submitted: 'Envoyée', returnHome: 'Retour à l’accueil',
-    hostTitle: 'Régie', hostBody: 'Vérifiez la salle une fois. Ensuite, laissez la file avancer.',
-    pending: 'En attente', approved: 'Approuvée', played: 'Passée', waiting: 'En attente',
-    rejected: 'Refusée', skipped: 'Passée', selectSession: 'Choisir une session',
-    noAdminSessions: 'Aucune session hébergée.', queue: 'File', all: 'Toutes', review: 'Vérifier',
-    approve: 'Approuver', reject: 'Refuser', markPlayed: 'Marquer passée', skip: 'Passer',
-    undoPlayed: 'Remettre dans la file', play: 'Lire', pause: 'Pause', next: 'Suivante',
-    nowPlaying: 'En lecture', upcoming: 'À suivre', trackOf: 'Piste', hostGuide: 'Guide régie',
-    guide1: 'Lire l’intro', guide2: 'Appuyer sur lecture', guide3: 'Passer à la suivante', guide4: 'Marquer passée',
-    guideBody1: 'Jetez un œil à l’artiste et au texte.', guideBody2: 'Lancez la piste en direct.',
-    guideBody3: 'Gardez l’ordre en mouvement.', guideBody4: 'Confirmez que la piste est passée.',
-    emptyQueue: 'La file est silencieuse.',
-    emptyQueueBody: 'Les artistes approuvés apparaîtront ici dans l’ordre.',
-    openLink: 'Ouvrir le lien',
-    audioFallback: 'Ce lien ne peut pas être lu ici. Ouvrez-le dans un nouvel onglet.',
-    embeddedPlayer: 'Lecteur de musique intégré', menu: 'Menu', close: 'Fermer', language: 'Langue',
-    available: 'disponibles', artistSpotlight: 'Coup de projecteur', genreShowcase: 'Vitrine de genres',
-    weekendTakeover: 'Prise de contrôle du week-end', selected: 'Sélectionnée',
-    sessionClosed: 'Cette session est fermée aux inscriptions.',
-    countryPlaceholder: 'Canada, Ukraine, Royaume-Uni…', genrePlaceholder: 'Post-rock, metal, darkwave…',
-    artistPlaceholder: 'Nom de votre projet', songPlaceholder: 'La chanson que nous devons entendre',
-    urlPlaceholder: 'https://…', introCount: 'caractères',
-    hostOnly: 'Accès régie requis', hostOnlyBody: 'Connectez-vous pour vérifier les envois et lancer une session.',
-    goToSignIn: 'Se connecter pour continuer', host: 'Régie', unavailable: 'Indisponible',
-    fullNote: 'Cette session a atteint sa capacité.', closedNote: 'Les inscriptions sont fermées pour cette session.',
-    trackLinkOnly: 'Ajoutez un lien d’écoute. Le téléversement MP3 n’est pas pris en charge.',
-    requiredValidation: 'Veuillez renseigner ce champ.', invalidUrlValidation: 'Saisissez une URL valide.',
-    mainNav: 'Navigation principale', footerTag: 'Musique indépendante · Vraies personnes · Salles LIVE',
-    hostPreview: 'Aperçu régie', publicPreview: 'Aperçu public', hostPreviewShort: 'Régie', publicPreviewShort: 'Public',
-    backToPublic: 'Retour à l’aperçu public',
-    openHostPreview: 'Ouvrir l’aperçu régie', localPreview: 'Aperçu local uniquement · sans connexion ni action serveur.',
-    onAir: 'En ondes', brandHome: 'Gathering of the Fallen LIVE — Accueil',
-    capacityProgress: 'inscrits / capacité',
-    queueTrackLabel: 'Position {number} dans la file : {song} par {artist}',
-    artistSpotlightBody: 'Un mélange de genres avec des artistes émergents et de nouveaux sons.',
-    genreShowcaseBody: 'Des genres qui tournent chaque semaine : rock, metal, alternatif et plus.',
-    weekendTakeoverBody: 'Une session intense pour finir la semaine avec le meilleur de la musique indépendante.',
-  },
-  ua: {
-    home: 'Головна', sessions: 'LIVE-сесії', submit: 'Надіслати музику', admin: 'Пульт ведучого', live: 'LIVE-режим',
-    signIn: 'Увійти', nextSession: 'Наступна сесія', liveNow: 'Наживо', open: 'Прийом відкрито',
-    closed: 'Закрито', full: 'Місць немає', viewSessions: 'Переглянути сесії',
-    submitCta: 'Надішліть трек у наступну кімнату',
-    submitNote: 'Без бар’єрів. Без листування. Лише пісня і місце цієї ночі.',
-    heroEyebrow: 'Незалежна музика · LIVE-сесії · зростаємо разом',
-    heroTitle: 'Нехай пісні\nзнайдуть світло.',
-    heroBody: 'Gathering of the Fallen LIVE — це кімната для слухання митців, які створюють прекрасний шум на краю мапи.',
-    browse: 'Переглянути сесії', hostLogin: 'Вхід ведучого', queuePreview: 'Попередній список',
-    tonight: 'Наступний ефір', spaces: 'вільних місць', people: 'зареєстровано митців', allGenres: 'Усі жанри',
-    join: 'Приєднатися', details: 'Деталі сесії', howItWorks: 'Як це працює',
-    step1: 'Надішліть пісню', step1Body: 'Додайте посилання і розкажіть ведучому, що він почує.',
-    step2: 'Оберіть вечір', step2Body: 'Оберіть відкриту сесію. Місце в черзі буде збережено одразу.',
-    step3: 'Потрапте в LIVE', step3Body: 'Ведучий рухається за порядком. Ви слухаєте разом з усіма.',
-    sessionsTitle: 'Оберіть LIVE-сесію',
-    sessionsBody: 'Знайдіть кімнату для свого звуку. Кожна сесія жива, людяна і послідовна.',
-    capacity: 'місткість', registered: 'зареєстровано', availability: 'доступність',
-    noSessions: 'Наразі відкритих сесій немає.', noSessionsBody: 'Поверніться скоро — нова кімната вже в календарі.',
-    refresh: 'Оновити', submitTitle: 'Помістіть свою пісню в кімнату',
-    submitBody: 'Короткий вступ допоможе ведучому створити правильний момент.',
-    artist: 'Ім’я артиста / гурту', song: 'Назва пісні', intro: 'Короткий вступ для ведучого',
-    introHint: 'Розкажіть, що несе ця пісня або що має знати кімната.', genre: 'Жанр',
-    country: 'Країна / регіон', social: 'Соціальне посилання', track: 'Посилання на трек',
-    trackHint: 'Spotify, SoundCloud, YouTube, Bandcamp або інше посилання.',
-    chooseSession: 'Оберіть LIVE-сесію',
-    rights: 'Я підтверджую, що володію правами на цей трек і дозволяю його трансляцію.',
-    sendTrack: 'Надіслати трек', submitting: 'Відправляємо в кімнату…', required: 'Обов’язково', optional: 'Необов’язково',
-    receiptTitle: 'Ви в кімнаті.', receiptBody: 'Збережіть цей чек. Ведучий перегляне чергу перед ефіром.',
-    queueNumber: 'Номер у черзі', status: 'Статус', submitted: 'Надіслано', returnHome: 'На головну',
-    hostTitle: 'Пульт ведучого', hostBody: 'Перевірте кімнату один раз. Далі черга рухається сама.',
-    pending: 'Очікує', approved: 'Схвалено', played: 'Програно', waiting: 'Очікує',
-    rejected: 'Відхилено', skipped: 'Пропущено', selectSession: 'Оберіть сесію',
-    noAdminSessions: 'Керованих сесій немає.', queue: 'Черга', all: 'Усі', review: 'Перегляд',
-    approve: 'Схвалити', reject: 'Відхилити', markPlayed: 'Позначити програним',
-    skip: 'Пропустити', undoPlayed: 'Повернути в чергу', play: 'Відтворити', pause: 'Пауза',
-    next: 'Наступний', nowPlaying: 'Зараз грає', upcoming: 'Далі', trackOf: 'Трек',
-    hostGuide: 'Підказки ведучому', guide1: 'Прочитайте вступ', guide2: 'Натисніть play',
-    guide3: 'Перейдіть далі', guide4: 'Позначте програним',
-    guideBody1: 'Швидко перегляньте артиста і текст.', guideBody2: 'Запустіть трек в ефірі.',
-    guideBody3: 'Підтримуйте порядок.', guideBody4: 'Підтвердіть, що трек прозвучав.',
-    emptyQueue: 'Черга тиха.',
-    emptyQueueBody: 'Схвалені артисти з’являться тут у визначеному порядку.',
-    openLink: 'Відкрити посилання',
-    audioFallback: 'Це посилання не можна відтворити тут. Відкрийте його в новій вкладці.',
-    embeddedPlayer: 'Вбудований аудіопрогравач', menu: 'Меню', close: 'Закрити', language: 'Мова',
-    available: 'доступно', artistSpotlight: 'Фокус на артистах', genreShowcase: 'Жанрова вітрина',
-    weekendTakeover: 'Вікенд-ефір', selected: 'Обрано', sessionClosed: 'Цю сесію закрито для нових заявок.',
-    countryPlaceholder: 'Канада, Україна, Велика Британія…', genrePlaceholder: 'Пост-рок, метал, дарквейв…',
-    artistPlaceholder: 'Назва вашого проєкту', songPlaceholder: 'Пісня, яку ми маємо почути',
-    urlPlaceholder: 'https://…', introCount: 'символів',
-    hostOnly: 'Потрібен доступ ведучого', hostOnlyBody: 'Увійдіть, щоб переглядати заявки і вести LIVE-сесію.',
-    goToSignIn: 'Увійти, щоб продовжити', host: 'Ведучий', unavailable: 'Недоступно',
-    fullNote: 'У цій сесії вже немає вільних місць.', closedNote: 'Прийом заявок на цю сесію закрито.',
-    trackLinkOnly: 'Додайте посилання для прослуховування. Завантаження MP3 не підтримується.',
-    requiredValidation: 'Заповніть це поле.', invalidUrlValidation: 'Введіть коректне посилання.',
-    mainNav: 'Головна навігація', footerTag: 'Незалежна музика · Справжні люди · LIVE-кімнати',
-    hostPreview: 'Попередній перегляд ведучого', publicPreview: 'Публічний перегляд',
-    hostPreviewShort: 'Ведучий', publicPreviewShort: 'Публічний',
-    backToPublic: 'Повернутися до публічного перегляду',
-    openHostPreview: 'Відкрити перегляд ведучого',
-    localPreview: 'Локальний перегляд · без входу й серверних дій.',
-    onAir: 'В ефірі', brandHome: 'Gathering of the Fallen LIVE — Головна',
-    capacityProgress: 'зареєстровано / місткість',
-    queueTrackLabel: 'Позиція {number} у черзі: {song}, виконавець {artist}',
-    artistSpotlightBody: 'Різні жанри та нові голоси незалежної сцени.',
-    genreShowcaseBody: 'Щотижня інші жанри: рок, метал, альтернатива та більше.',
-    weekendTakeoverBody: 'Енергійна сесія наприкінці тижня з найкращою незалежною музикою.',
-  },
-};
-
-const isLanguage = (value: unknown): value is Language => value === 'en' || value === 'fr' || value === 'ua';
-const translate = (language: Language, key: string) => translations[language][key] || translations.en[key] || key;
-const languageNames: Record<Language, Record<Language, string>> = {
-  en: { en: 'English', fr: 'French', ua: 'Ukrainian' },
-  fr: { en: 'anglais', fr: 'français', ua: 'ukrainien' },
-  ua: { en: 'англійська', fr: 'французька', ua: 'українська' },
-};
-
-function readLanguage(): Language {
-  try {
-    const saved = window.localStorage.getItem('gfl-language');
-    return isLanguage(saved) ? saved : 'en';
-  } catch {
-    return 'en';
-  }
-}
-
-function localizedDate(date: string, language: Language, options?: Intl.DateTimeFormatOptions) {
-  const locale = language === 'ua' ? 'uk-UA' : language === 'fr' ? 'fr-CA' : 'en-CA';
-  return new Intl.DateTimeFormat(locale, {
-    timeZone: 'America/Toronto', weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', ...options,
-  }).format(new Date(date));
-}
-
-function localizedSessionName(session: GoFLSession, language: Language) {
-  return translate(language, session.sessionType === 'artist_spotlight'
+ype === 'artist_spotlight'
     ? 'artistSpotlight'
     : session.sessionType === 'genre_showcase' ? 'genreShowcase' : 'weekendTakeover');
 }
@@ -349,9 +101,9 @@ function Field({
         autoCapitalize={type === 'url' ? 'none' : 'sentences'}
         aria-label={label}
         onInvalid={(event) => event.currentTarget.setCustomValidity(
-          type === 'url' && !event.currentTarget.validity.valueMissing
+          `${label}: ${type === 'url' && !event.currentTarget.validity.valueMissing
             ? t('invalidUrlValidation')
-            : t('requiredValidation'),
+            : t('requiredValidation')}`,
         )}
         onInput={(event) => event.currentTarget.setCustomValidity('')}
       />
@@ -878,7 +630,7 @@ export function MobileExperience() {
                 maxLength={300}
                 value={form.intro}
                 onChange={(event) => updateForm('intro', event.target.value)}
-                onInvalid={(event) => event.currentTarget.setCustomValidity(t('requiredValidation'))}
+                onInvalid={(event) => event.currentTarget.setCustomValidity(`${t('intro')}: ${t('requiredValidation')}`)}
                 onInput={(event) => event.currentTarget.setCustomValidity('')}
                 placeholder={t('introHint')}
               />
@@ -896,7 +648,7 @@ export function MobileExperience() {
                 required
                 value={selectedSessionId}
                 onChange={(event) => setSelectedSessionId(event.target.value)}
-                onInvalid={(event) => event.currentTarget.setCustomValidity(t('requiredValidation'))}
+                onInvalid={(event) => event.currentTarget.setCustomValidity(`${t('chooseSession')}: ${t('requiredValidation')}`)}
                 onInput={(event) => event.currentTarget.setCustomValidity('')}
               >
                 {sessions.map((session) => (
@@ -914,7 +666,7 @@ export function MobileExperience() {
                 checked={rightsAccepted}
                 onChange={(event) => setRightsAccepted(event.target.checked)}
                 required
-                onInvalid={(event) => event.currentTarget.setCustomValidity(t('requiredValidation'))}
+                onInvalid={(event) => event.currentTarget.setCustomValidity(t('rightsValidation'))}
                 onInput={(event) => event.currentTarget.setCustomValidity('')}
               />
               <span>{t('rights')} <b className="gm-required">*</b></span>

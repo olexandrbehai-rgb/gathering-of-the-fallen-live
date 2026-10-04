@@ -261,7 +261,7 @@ async function selectLanguage(language, devtools, sessionId) {
 
 async function testSubmissionReceipt(devtools, sessionId) {
   await navigateTo("submit", devtools, sessionId, testBaseUrl);
-  await devtools.evaluate(
+  const formDetails = await devtools.evaluate(
     `(() => {
       const form = document.querySelector('[data-testid="form-submit-track"]');
       const fields = [...form.querySelectorAll('input:not([type="checkbox"])')];
@@ -292,14 +292,109 @@ async function testSubmissionReceipt(devtools, sessionId) {
         inputCount: fields.length,
         selectedSession: session.value,
         rightsAccepted: form.querySelector('[data-testid="input-rights-accepted"]').checked,
+        requiredControls: [...form.querySelectorAll(":required")].map((control) => ({
+          tagName: control.tagName,
+          type: control.type,
+          value: control.value,
+          checked: control.checked,
+        })),
+        fullSessionDisabled: form.querySelector('[data-testid="select-session"] option[value="session-03"]').disabled,
       };
     })()`,
     sessionId,
-  ).then((result) => {
-    assert.equal(result.inputCount, 6, "Unexpected number of text fields in the submission form");
-    assert.equal(result.selectedSession, "session-02", "The selected session did not change");
-    assert.equal(result.rightsAccepted, true, "Rights confirmation was not accepted");
-  });
+  );
+  assert.equal(formDetails.inputCount, 6, "Unexpected number of text fields in the submission form");
+  assert.equal(formDetails.selectedSession, "session-02", "The selected session did not change");
+  assert.equal(formDetails.rightsAccepted, true, "Rights confirmation was not accepted");
+  assert.deepEqual(
+    formDetails.requiredControls.map(({ tagName, type }) => `${tagName}:${type}`),
+    [
+      "INPUT:text",
+      "INPUT:text",
+      "TEXTAREA:textarea",
+      "INPUT:text",
+      "INPUT:text",
+      "INPUT:url",
+      "SELECT:select-one",
+      "INPUT:checkbox",
+    ],
+    "The form does not mark every required field and rights confirmation as required",
+  );
+  assert.equal(formDetails.fullSessionDisabled, true, "A full session is available in the submission form");
+
+  const requiredControls = formDetails.requiredControls;
+  for (let index = 0; index < requiredControls.length; index += 1) {
+    const wasCleared = await devtools.evaluate(
+      `(() => {
+        const form = document.querySelector('[data-testid="form-submit-track"]');
+        const control = [...form.querySelectorAll(":required")][${index}];
+        if (control.type === "checkbox") {
+          if (control.checked) control.click();
+        } else {
+          const prototype = control instanceof HTMLTextAreaElement
+            ? HTMLTextAreaElement.prototype
+            : control instanceof HTMLSelectElement
+              ? HTMLSelectElement.prototype
+              : HTMLInputElement.prototype;
+          Object.getOwnPropertyDescriptor(prototype, "value").set.call(control, "");
+          control.dispatchEvent(new Event(control instanceof HTMLSelectElement ? "change" : "input", { bubbles: true }));
+        }
+        return control.type === "checkbox" ? !control.checked : control.value === "";
+      })()`,
+      sessionId,
+    );
+    assert.equal(wasCleared, true, `Could not omit required field ${index + 1}`);
+    await click('[data-testid="button-submit-track"]', devtools, sessionId);
+    const stillOnForm = await devtools.evaluate(
+      `Boolean(document.querySelector('[data-testid="form-submit-track"]'))`,
+      sessionId,
+    );
+    assert.equal(stillOnForm, true, `Omitting required field ${index + 1} showed a submission receipt`);
+
+    await devtools.evaluate(
+      `(() => {
+        const form = document.querySelector('[data-testid="form-submit-track"]');
+        const control = [...form.querySelectorAll(":required")][${index}];
+        if (control.type === "checkbox") {
+          if (control.checked !== ${requiredControls[index].checked}) control.click();
+        } else {
+          const value = ${JSON.stringify(requiredControls[index].value)};
+          const prototype = control instanceof HTMLTextAreaElement
+            ? HTMLTextAreaElement.prototype
+            : control instanceof HTMLSelectElement
+              ? HTMLSelectElement.prototype
+              : HTMLInputElement.prototype;
+          Object.getOwnPropertyDescriptor(prototype, "value").set.call(control, value);
+          control.dispatchEvent(new Event(control instanceof HTMLSelectElement ? "change" : "input", { bubbles: true }));
+        }
+      })()`,
+      sessionId,
+    );
+  }
+
+  await devtools.evaluate(
+    `(() => {
+      const session = document.querySelector('[data-testid="select-session"]');
+      session.value = "session-03";
+      session.dispatchEvent(new Event("change", { bubbles: true }));
+    })()`,
+    sessionId,
+  );
+  await click('[data-testid="button-submit-track"]', devtools, sessionId);
+  assert.equal(
+    await devtools.evaluate(`Boolean(document.querySelector('[data-testid="form-submit-track"]'))`, sessionId),
+    true,
+    "Selecting a full session showed a submission receipt",
+  );
+
+  await devtools.evaluate(
+    `(() => {
+      const session = document.querySelector('[data-testid="select-session"]');
+      session.value = "session-02";
+      session.dispatchEvent(new Event("change", { bubbles: true }));
+    })()`,
+    sessionId,
+  );
   await click('[data-testid="button-submit-track"]', devtools, sessionId);
   await waitFor("submission receipt", () =>
     devtools.evaluate(

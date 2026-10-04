@@ -1,6 +1,7 @@
 import type { Session } from "@workspace/db";
 
-const SESSION_TIME_ZONE = "America/Toronto";
+const SESSION_TIME_ZONE = "Europe/Kyiv";
+const LEGACY_SESSION_TIME_ZONE = "America/Toronto";
 const CALENDAR_DAY_MS = 86_400_000;
 
 type SessionSchedule = {
@@ -9,20 +10,20 @@ type SessionSchedule = {
 };
 
 const WEEKDAY_SCHEDULE: Partial<Record<number, SessionSchedule>> = {
-  2: { sessionType: "artist_spotlight", hour: 20 },
-  4: { sessionType: "genre_showcase", hour: 20 },
-  6: { sessionType: "weekend_takeover", hour: 21 },
+  2: { sessionType: "artist_spotlight", hour: 7 },
+  4: { sessionType: "genre_showcase", hour: 7 },
+  6: { sessionType: "weekend_takeover", hour: 7 },
 };
 
 const DEFAULT_DAILY_SCHEDULE: SessionSchedule = {
   sessionType: "artist_spotlight",
-  hour: 20,
+  hour: 7,
 };
 
-function torontoParts(date: Date): Record<string, string> {
+function dateParts(date: Date, timeZone: string): Record<string, string> {
   return Object.fromEntries(
     new Intl.DateTimeFormat("en-CA", {
-      timeZone: SESSION_TIME_ZONE,
+      timeZone,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -34,16 +35,17 @@ function torontoParts(date: Date): Record<string, string> {
   );
 }
 
-export function torontoWallTimeToUtc(
+function wallTimeToUtc(
   year: number,
   month: number,
   day: number,
   hour: number,
+  timeZone: string,
 ): Date {
   const intendedWallTime = Date.UTC(year, month - 1, day, hour);
   let result = new Date(intendedWallTime);
   const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: SESSION_TIME_ZONE,
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -72,6 +74,42 @@ export function torontoWallTimeToUtc(
   return result;
 }
 
+export function kyivWallTimeOnDate(date: Date, hour: number): Date {
+  const localDate = dateParts(date, SESSION_TIME_ZONE);
+  return wallTimeToUtc(
+    Number(localDate.year),
+    Number(localDate.month),
+    Number(localDate.day),
+    hour,
+    SESSION_TIME_ZONE,
+  );
+}
+
+export function legacyTorontoWallTimeOnDate(date: Date, hour: number): Date {
+  const localDate = dateParts(date, LEGACY_SESSION_TIME_ZONE);
+  return wallTimeToUtc(
+    Number(localDate.year),
+    Number(localDate.month),
+    Number(localDate.day),
+    hour,
+    LEGACY_SESSION_TIME_ZONE,
+  );
+}
+
+export function legacyTorontoDateAtKyivWallTime(
+  date: Date,
+  hour: number,
+): Date {
+  const legacyDate = dateParts(date, LEGACY_SESSION_TIME_ZONE);
+  return wallTimeToUtc(
+    Number(legacyDate.year),
+    Number(legacyDate.month),
+    Number(legacyDate.day),
+    hour,
+    SESSION_TIME_ZONE,
+  );
+}
+
 export function generateUpcomingSessionInstances(
   now: Date,
   count = 14,
@@ -80,7 +118,7 @@ export function generateUpcomingSessionInstances(
     throw new RangeError("Session count must be a non-negative integer.");
   }
 
-  const localNow = torontoParts(now);
+  const localNow = dateParts(now, SESSION_TIME_ZONE);
   const localTodayUtc = Date.UTC(
     Number(localNow.year),
     Number(localNow.month) - 1,
@@ -101,11 +139,12 @@ export function generateUpcomingSessionInstances(
     const localDate = new Date(localTodayUtc + dayOffset * CALENDAR_DAY_MS);
     const schedule =
       WEEKDAY_SCHEDULE[localDate.getUTCDay()] ?? DEFAULT_DAILY_SCHEDULE;
-    const startsAt = torontoWallTimeToUtc(
+    const startsAt = wallTimeToUtc(
       localDate.getUTCFullYear(),
       localDate.getUTCMonth() + 1,
       localDate.getUTCDate(),
       schedule.hour,
+      SESSION_TIME_ZONE,
     );
 
     if (startsAt <= now) continue;
