@@ -26,6 +26,7 @@ let createdSubmissionCounter = 10;
 class FixtureQuery implements PromiseLike<unknown[]> {
   private table: unknown;
   private limitCount: number | undefined;
+  private condition: unknown;
 
   constructor(
     private readonly database: FixtureDatabase,
@@ -37,7 +38,8 @@ class FixtureQuery implements PromiseLike<unknown[]> {
     return this;
   }
 
-  where(): this {
+  where(condition?: unknown): this {
+    this.condition = condition;
     return this;
   }
 
@@ -68,6 +70,10 @@ class FixtureQuery implements PromiseLike<unknown[]> {
   private rows(): unknown[] {
     let rows: unknown[];
     const fields = Object.keys(this.projection ?? {});
+    const hasRejectedFilter = containsRejectedStatusParameter(this.condition);
+    const registrationSubmissions = hasRejectedFilter
+      ? this.database.submissions.filter((item) => item.status !== "rejected")
+      : this.database.submissions;
 
     if (this.table === sessionsTable) {
       rows =
@@ -82,23 +88,42 @@ class FixtureQuery implements PromiseLike<unknown[]> {
             )
           : this.database.sessions;
     } else if (this.table === submissionsTable) {
-      if (fields.includes("registered") && fields.includes("highestQueueNumber")) {
+      if (fields.includes("registered")) {
         rows = [
           {
-            registered: this.database.submissions.length,
-            highestQueueNumber: Math.max(
-              0,
-              ...this.database.submissions.map((item) => item.queueNumber),
-            ),
+            registered: registrationSubmissions.length,
           },
         ];
+      } else if (fields.includes("highestQueueNumber")) {
+        rows = [{
+          highestQueueNumber: Math.max(
+            0,
+            ...this.database.submissions.map((item) => item.queueNumber),
+          ),
+        }];
+      } else if (
+        fields.includes("sessionId") &&
+        fields.includes("status") &&
+        fields.includes("total")
+      ) {
+        const grouped = new Map<string, number>();
+        for (const item of this.database.submissions) {
+          const key = `${item.sessionId}:${item.status}`;
+          grouped.set(key, (grouped.get(key) ?? 0) + 1);
+        }
+        rows = [...grouped].map(([key, total]) => {
+          const [groupSessionId, status] = key.split(":");
+          return { sessionId: groupSessionId, status, total };
+        });
       } else if (fields.includes("sessionId") && fields.includes("total")) {
-        rows = [
-          {
-            sessionId,
-            total: this.database.submissions.length,
-          },
-        ];
+        const grouped = new Map<string, number>();
+        for (const item of registrationSubmissions) {
+          grouped.set(item.sessionId, (grouped.get(item.sessionId) ?? 0) + 1);
+        }
+        rows = [...grouped].map(([groupSessionId, total]) => ({
+          sessionId: groupSessionId,
+          total,
+        }));
       } else if (fields.length > 0) {
         rows = this.database.submissions
           .filter((item) => item.status === "approved")
@@ -117,6 +142,20 @@ class FixtureQuery implements PromiseLike<unknown[]> {
 
     return this.limitCount === undefined ? rows : rows.slice(0, this.limitCount);
   }
+}
+
+function containsRejectedStatusParameter(
+  value: unknown,
+  seen = new Set<object>(),
+): boolean {
+  if (value === null || typeof value !== "object" || seen.has(value)) {
+    return false;
+  }
+  seen.add(value);
+  if ("value" in value && value.value === "rejected") return true;
+  return Object.values(value).some((nested) =>
+    containsRejectedStatusParameter(nested, seen),
+  );
 }
 
 class FixtureDatabase {
@@ -439,6 +478,54 @@ test("a full session is shown with no availability and rejects a new submission"
     assert.equal(response.status, 400);
     assert.deepEqual(await response.json(), { error: "This session is full." });
     assert.equal(database.submissions.length, 1);
+  });
+});
+
+test("rejecting a track releases its session count and capacity", async () => {
+  const database = new FixtureDatabase(
+    [makeSession({ capacity: 1 })],
+    [makeSubmission()],
+  );
+
+  await withApi(database, async (baseUrl) => {
+    const beforeResponse = await fetch(`${baseUrl}/api/sessions`);
+    const [before] = (await beforeResponse.json()) as Array<{
+      registered: number;
+      available: number;
+    }>;
+    assert.equal(before.registered, 1);
+    assert.equal(before.available, 0);
+
+    const rejectResponse = await fetch(
+      `${baseUrl}/api/admin/submissions/${existingSubmissionId}`,
+      {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          "x-test-host": "host_fixture",
+        },
+        body: JSON.stringify({ status: "rejected" }),
+      },
+    );
+    assert.equal(rejectResponse.status, 200);
+    assert.equal(database.submissions[0].status, "rejected");
+
+    const afterResponse = await fetch(`${baseUrl}/api/sessions`);
+    const [after] = (await afterResponse.json()) as Array<{
+      registered: number;
+      available: number;
+    }>;
+    assert.equal(after.registered, 0);
+    assert.equal(after.available, 1);
+
+    const replacementResponse = await fetch(`${baseUrl}/api/submissions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(submissionInput),
+    });
+    assert.equal(replacementResponse.status, 201);
+    assert.equal(database.submissions.length, 2);
+    assert.equal(database.submissions[0].status, "rejected");
   });
 });
 

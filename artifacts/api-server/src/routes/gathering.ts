@@ -19,7 +19,7 @@ import {
   type Session,
   type Submission,
 } from "@workspace/db";
-import { and, asc, count, eq, gt, gte, inArray, max, sql } from "drizzle-orm";
+import { and, asc, count, eq, gt, gte, inArray, max, ne, sql } from "drizzle-orm";
 import { Router, type IRouter, type RequestHandler } from "express";
 import { logger } from "../lib/logger";
 import { requireHost } from "../middlewares/requireHost";
@@ -171,6 +171,7 @@ async function registrationCounts(
   const grouped = await database
     .select({ sessionId: submissionsTable.sessionId, total: count() })
     .from(submissionsTable)
+    .where(ne(submissionsTable.status, "rejected"))
     .groupBy(submissionsTable.sessionId);
   return new Map(grouped.map((row) => [row.sessionId, Number(row.total)]));
 }
@@ -288,19 +289,29 @@ router.post("/submissions", async (req, res): Promise<void> => {
     }
 
     const [current] = await tx
-      .select({ registered: count(), highestQueueNumber: max(submissionsTable.queueNumber) })
+      .select({ registered: count() })
       .from(submissionsTable)
-      .where(eq(submissionsTable.sessionId, session.id));
+      .where(
+        and(
+          eq(submissionsTable.sessionId, session.id),
+          ne(submissionsTable.status, "rejected"),
+        ),
+      );
     const registered = Number(current?.registered ?? 0);
     if (registered >= session.capacity) {
       return { error: "This session is full." } as const;
     }
 
+    const [queue] = await tx
+      .select({ highestQueueNumber: max(submissionsTable.queueNumber) })
+      .from(submissionsTable)
+      .where(eq(submissionsTable.sessionId, session.id));
+
     const [created] = await tx
       .insert(submissionsTable)
       .values({
         sessionId: input.sessionId,
-        queueNumber: Number(current?.highestQueueNumber ?? 0) + 1,
+        queueNumber: Number(queue?.highestQueueNumber ?? 0) + 1,
         artistName: input.artistName.trim(),
         songTitle: input.songTitle.trim(),
         intro: input.intro.trim(),

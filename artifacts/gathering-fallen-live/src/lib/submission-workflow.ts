@@ -61,4 +61,8 @@ export function refreshAfterHostQueueChange(
   void queryClient.invalidateQueries({
     queryKey: getListAdminSessionsQueryKey(),
   });
+  void queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+  void queryClient.invalidateQueries({
+    queryKey: getGetSessionQueuePreviewQueryKey(sessionId),
+  });
 }

@@ -36,6 +36,7 @@ import {
   getGetAdminAccessQueryKey,
   getGetAdminSessionQueueQueryKey,
   getGetSessionQueuePreviewQueryKey,
+  getListSessionsQueryKey,
   useCreateSubmission,
   useGetAdminSessionQueue,
   useGetAdminAccess,
@@ -364,6 +365,12 @@ function SessionCard({ session, t, language }: { session: SessionSummary; t: (ke
   </article>;
 }
 
+function useLiveSessionList() {
+  return useListSessions({
+    query: { queryKey: getListSessionsQueryKey(), refetchInterval: 30_000 },
+  });
+}
+
 function QueuePreview({ sessionId, t }: { sessionId?: string; t: (key: string) => string }) {
   const query = useGetSessionQueuePreview(sessionId || '', { query: { enabled: Boolean(sessionId), queryKey: getGetSessionQueuePreviewQueryKey(sessionId || '') } });
   const items = query.data || [];
@@ -372,7 +379,7 @@ function QueuePreview({ sessionId, t }: { sessionId?: string; t: (key: string) =
 
 function HomePage() {
   const { language, t } = useLanguage();
-  const sessionsQuery = useListSessions();
+  const sessionsQuery = useLiveSessionList();
   const sessions = sessionsQuery.data || [];
   const next = sessions[0];
   return <Shell><main>
@@ -399,7 +406,7 @@ function HomePage() {
 
 function SessionsPage() {
   const { language, t } = useLanguage();
-  const query = useListSessions();
+  const query = useLiveSessionList();
   const sessions = query.data || [];
   return <Shell><main className="mx-auto max-w-[1440px] px-4 py-16 sm:px-7 sm:py-24"><SectionHeading eyebrow={t('liveNow')} title={t('sessionsTitle')} body={t('sessionsBody')} /><div className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{query.isLoading ? <LoadingState t={t} /> : query.isError ? <ErrorState t={t} onRetry={() => query.refetch()} /> : sessions.length ? sessions.map((session) => <SessionCard key={session.id} session={session} t={t} language={language} />) : <div className="col-span-full rounded-xl border border-dashed border-border p-14 text-center"><CalendarDays className="mx-auto size-8 text-primary" /><p className="mt-4 text-sm font-semibold">{t('noSessions')}</p><p className="mt-2 text-sm text-muted-foreground">{t('noSessionsBody')}</p></div>}</div>{sessions.length > 0 && <div className="mt-16 grid gap-4 lg:grid-cols-[1fr_1fr]"><QueuePreview sessionId={sessions[0]?.id} t={t} /><div className="rounded-xl border border-border bg-card/35 p-6"><p className="font-mono-ui text-[10px] uppercase tracking-[.24em] text-primary">{t('howItWorks')}</p><div className="mt-7 space-y-5">{[['step1', 'step1Body'], ['step2', 'step2Body'], ['step3', 'step3Body']].map(([title, body], index) => <div className="flex gap-4" key={title}><span className="grid size-8 shrink-0 place-items-center rounded-full border border-primary/50 font-mono-ui text-xs text-primary">{index + 1}</span><div><h3 className="text-sm font-bold">{t(title)}</h3><p className="mt-1 text-xs leading-6 text-muted-foreground">{t(body)}</p></div></div>)}</div></div></div>}</main></Shell>;
 }
@@ -407,7 +414,7 @@ function SessionsPage() {
 function SubmitPage() {
   const { language, t } = useLanguage();
   const [, setLocation] = useLocation();
-  const sessionsQuery = useListSessions();
+  const sessionsQuery = useLiveSessionList();
   const create = useCreateSubmission();
   const queryClient = useQueryClient();
   const params = new URLSearchParams(window.location.search);

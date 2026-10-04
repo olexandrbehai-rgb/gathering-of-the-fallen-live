@@ -64,7 +64,7 @@ test("artist receipts refresh the session list and that session's public queue",
   ]);
 });
 
-test("every host status change refreshes its queue and the admin session summary", () => {
+test("host status changes refresh admin data and public availability", () => {
   const invalidations: unknown[][] = [];
   const queryClient = {
     invalidateQueries: async ({ queryKey }: { queryKey: readonly unknown[] }) => {
@@ -77,5 +77,7 @@ test("every host status change refreshes its queue and the admin session summary
   assert.deepEqual(invalidations, [
     getGetAdminSessionQueueQueryKey(sessionId),
     getListAdminSessionsQueryKey(),
+    getListSessionsQueryKey(),
+    getGetSessionQueuePreviewQueryKey(sessionId),
   ]);
 });
