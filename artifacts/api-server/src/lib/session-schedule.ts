@@ -4,20 +4,25 @@ const SESSION_TIME_ZONE = "Europe/Kyiv";
 const LEGACY_SESSION_TIME_ZONE = "America/Toronto";
 const CALENDAR_DAY_MS = 86_400_000;
 
+/** Daily live session start, as a wall-clock hour in Europe/Kyiv (20:00 = 8 PM). */
+export const SESSION_HOUR = 20;
+/** Previous schedule (07:00 Kyiv); existing rows at this time are moved to SESSION_HOUR. */
+export const PREVIOUS_SESSION_HOUR = 7;
+
 type SessionSchedule = {
   sessionType: Session["sessionType"];
   hour: number;
 };
 
 const WEEKDAY_SCHEDULE: Partial<Record<number, SessionSchedule>> = {
-  2: { sessionType: "artist_spotlight", hour: 7 },
-  4: { sessionType: "genre_showcase", hour: 7 },
-  6: { sessionType: "weekend_takeover", hour: 7 },
+  2: { sessionType: "artist_spotlight", hour: SESSION_HOUR },
+  4: { sessionType: "genre_showcase", hour: SESSION_HOUR },
+  6: { sessionType: "weekend_takeover", hour: SESSION_HOUR },
 };
 
 const DEFAULT_DAILY_SCHEDULE: SessionSchedule = {
   sessionType: "artist_spotlight",
-  hour: 7,
+  hour: SESSION_HOUR,
 };
 
 function dateParts(date: Date, timeZone: string): Record<string, string> {

@@ -10,6 +10,8 @@ import {
   buildSubmissionInput,
   isSessionSubmittable,
   refreshAfterArtistSubmission,
+  submissionErrorKey,
+  submissionFormIssue,
   refreshAfterHostQueueChange,
 } from "./submission-workflow";
 
@@ -80,4 +82,22 @@ test("host status changes refresh admin data and public availability", () => {
     getListSessionsQueryKey(),
     getGetSessionQueuePreviewQueryKey(sessionId),
   ]);
+});
+
+test("explains why an incomplete artist registration cannot be sent", () => {
+  const open = { isOpen: true, available: 3 };
+  const form = { artistName: "A", songTitle: "S", intro: "Hi", genre: "Rock", country: "UA", socialUrl: "", trackUrl: "https://suno.com/s/x", rightsAccepted: true };
+  assert.equal(submissionFormIssue(open, form), null);
+  assert.equal(submissionFormIssue(undefined, form), "sessionRequired");
+  assert.equal(submissionFormIssue({ isOpen: true, available: 0 }, form), "sessionRequired");
+  assert.equal(submissionFormIssue(open, { ...form, genre: "  " }), "formIncomplete");
+  assert.equal(submissionFormIssue(open, { ...form, rightsAccepted: false }), "rightsRequired");
+});
+
+test("maps API registration errors to translated messages", () => {
+  assert.equal(submissionErrorKey({ status: 400, data: { error: "This session is full." } }), "fullNote");
+  assert.equal(submissionErrorKey({ status: 400, data: { error: "This session is no longer accepting submissions." } }), "sessionClosed");
+  assert.equal(submissionErrorKey({ status: 400, data: { error: "Links must use HTTP or HTTPS." } }), "linkInvalid");
+  assert.equal(submissionErrorKey({ status: 500, data: null }), "error");
+  assert.equal(submissionErrorKey(new Error("network")), "error");
 });

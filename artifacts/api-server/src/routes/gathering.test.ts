@@ -11,6 +11,7 @@ import {
 } from "@workspace/db";
 import {
   generateUpcomingSessionInstances,
+  kyivWallTimeOnDate,
   legacyTorontoDateAtKyivWallTime,
   legacyTorontoWallTimeOnDate,
 } from "../lib/session-schedule";
@@ -246,8 +247,10 @@ class FixtureDatabase {
           const session = database.sessions.find(
             (candidate) =>
               candidate.startsAt.getTime() !== startsAt.getTime() &&
-              legacyTorontoDateAtKyivWallTime(candidate.startsAt, 7).getTime() ===
-                startsAt.getTime(),
+              (legacyTorontoDateAtKyivWallTime(candidate.startsAt, 20).getTime() ===
+                startsAt.getTime() ||
+                kyivWallTimeOnDate(candidate.startsAt, 20).getTime() ===
+                  startsAt.getTime()),
           );
           assert.ok(session);
           session.startsAt = startsAt;
@@ -371,7 +374,7 @@ const submissionInput = {
   rightsAccepted: true,
 };
 
-test("moves existing upcoming sessions to 7 AM without replacing the session", async () => {
+test("moves legacy Toronto sessions to 20:00 Kyiv without replacing the session", async () => {
   const oldStartsAt = legacyTorontoWallTimeOnDate(
     new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
     20,
@@ -390,9 +393,33 @@ test("moves existing upcoming sessions to 7 AM without replacing the session", a
   assert.ok(movedSession);
   assert.equal(
     movedSession.startsAt.getTime(),
-    legacyTorontoDateAtKyivWallTime(oldStartsAt, 7).getTime(),
+    legacyTorontoDateAtKyivWallTime(oldStartsAt, 20).getTime(),
   );
   assert.equal(movedSession.sessionType, originalSession.sessionType);
+  assert.equal(movedSession.id, originalSession.id);
+});
+
+test("moves sessions previously scheduled at 07:00 Kyiv to 20:00 Kyiv on the same day", async () => {
+  const oldStartsAt = kyivWallTimeOnDate(
+    new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
+    7,
+  );
+  const originalSession = makeSession({ startsAt: oldStartsAt });
+  const database = new FixtureDatabase([originalSession], [], true);
+
+  await withApi(database, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/sessions`);
+    assert.equal(response.status, 200);
+  });
+
+  const movedSession = database.sessions.find(
+    (session) => session.id === originalSession.id,
+  );
+  assert.ok(movedSession);
+  assert.equal(
+    movedSession.startsAt.getTime(),
+    kyivWallTimeOnDate(oldStartsAt, 20).getTime(),
+  );
   assert.equal(movedSession.id, originalSession.id);
 });
 
