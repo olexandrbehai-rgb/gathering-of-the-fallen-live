@@ -60,6 +60,9 @@ import {
   isSessionSubmittable,
   refreshAfterArtistSubmission,
   refreshAfterHostQueueChange,
+  submissionErrorKey,
+  submissionFormIssue,
+  type SubmissionFormIssue,
 } from '@/lib/submission-workflow';
 import { LiveTrackPlayer, type LiveTrackPlayerHandle } from '@/components/live-track-player';
 import { canPlayTrackInline } from '@/lib/track-source';
@@ -113,7 +116,7 @@ const copy: Record<Language, Copy> = {
     weekendTakeoverBody: 'A high-energy session to close the week with the best in independent music.',
     countryPlaceholder: 'Canada, Ukraine, United Kingdom…', genrePlaceholder: 'Post-rock, metal, darkwave…',
     artistPlaceholder: 'Your artist name', songPlaceholder: 'The song we should hear', urlPlaceholder: 'https://…',
-    introCount: 'characters', selected: 'Selected', sessionClosed: 'This session is closed for submissions.',
+    introCount: 'characters', selected: 'Selected', sessionClosed: 'This session is closed for submissions.', sessionRequired: 'Choose an open live session first.', formIncomplete: 'Please fill in all required fields marked with *.', rightsRequired: 'Please confirm you own the rights to this track (checkbox above).', linkInvalid: 'Please use a full link starting with https://.',
     hostOnly: 'Host access required', hostOnlyBody: 'Sign in to review submissions and run a live session.',
     hostAccessDenied: 'This account does not have host access.', hostAccessDeniedBody: 'Host controls are available only to an authorized host.',
     hostAccessCheckFailed: 'Host access could not be checked.',
@@ -167,7 +170,7 @@ const copy: Record<Language, Copy> = {
     weekendTakeoverBody: 'Une session intense pour finir la semaine avec le meilleur de la musique indépendante.',
     countryPlaceholder: 'Canada, Ukraine, Royaume-Uni…', genrePlaceholder: 'Post-rock, metal, darkwave…',
     artistPlaceholder: 'Nom de votre projet', songPlaceholder: 'La chanson que nous devons entendre', urlPlaceholder: 'https://…',
-    introCount: 'caractères', selected: 'Sélectionnée', sessionClosed: 'Cette session est fermée aux inscriptions.',
+    introCount: 'caractères', selected: 'Sélectionnée', sessionClosed: 'Cette session est fermée aux inscriptions.', sessionRequired: 'Choisissez d’abord une session LIVE ouverte.', formIncomplete: 'Veuillez remplir tous les champs obligatoires marqués d’un *.', rightsRequired: 'Veuillez confirmer détenir les droits de cette piste (case ci-dessus).', linkInvalid: 'Utilisez un lien complet commençant par https://.',
     hostOnly: 'Accès régie requis', hostOnlyBody: 'Connectez-vous pour vérifier les envois et lancer une session.',
     hostAccessDenied: 'Ce compte n’a pas accès à la régie.', hostAccessDeniedBody: 'Les commandes de la régie sont réservées à l’hôte autorisé.',
     hostAccessCheckFailed: 'Impossible de vérifier l’accès à la régie.',
@@ -220,7 +223,7 @@ const copy: Record<Language, Copy> = {
     weekendTakeoverBody: 'Енергійна сесія наприкінці тижня з найкращою незалежною музикою.',
     countryPlaceholder: 'Канада, Україна, Велика Британія…', genrePlaceholder: 'Пост-рок, метал, дарквейв…',
     artistPlaceholder: 'Назва вашого проєкту', songPlaceholder: 'Пісня, яку ми маємо почути', urlPlaceholder: 'https://…',
-    introCount: 'символів', selected: 'Обрано', sessionClosed: 'Цю сесію закрито для нових заявок.',
+    introCount: 'символів', selected: 'Обрано', sessionClosed: 'Цю сесію закрито для нових заявок.', sessionRequired: 'Спершу оберіть відкриту LIVE-сесію.', formIncomplete: 'Заповніть усі обов’язкові поля, позначені *.', rightsRequired: 'Підтвердьте, що володієте правами на трек (позначка вище).', linkInvalid: 'Вкажіть повне посилання, що починається з https://.',
     hostOnly: 'Потрібен доступ ведучого', hostOnlyBody: 'Увійдіть, щоб переглядати заявки і вести LIVE-сесію.',
     hostAccessDenied: 'Цей обліковий запис не має доступу ведучого.', hostAccessDeniedBody: 'Керування доступне лише авторизованому ведучому.',
     hostAccessCheckFailed: 'Не вдалося перевірити доступ ведучого.',
@@ -232,7 +235,7 @@ const copy: Record<Language, Copy> = {
   },
 };
 
-const clerkPubKey = publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_GOFL_CLERK_PUBLISHABLE_KEY);
+const clerkPubKey = publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_GOFL_CLERK_PUBLISHABLE_KEY || import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 const clerkProxyUrl =
   import.meta.env.VITE_CLERK_PROXY_URL ||
   (import.meta.env.PROD ? '/api/__clerk' : undefined);
@@ -421,13 +424,16 @@ function SubmitPage() {
   const preselected = params.get('sessionId') || '';
   const [sessionId, setSessionId] = useState(preselected);
   const [form, setForm] = useState({ artistName: '', songTitle: '', intro: '', genre: '', country: '', socialUrl: '', trackUrl: '', rightsAccepted: false });
+  const [formIssue, setFormIssue] = useState<SubmissionFormIssue>(null);
   const [receipt, setReceipt] = useState<Awaited<ReturnType<typeof create.mutateAsync>> | null>(null);
   const sessions = sessionsQuery.data || [];
   const selected = sessions.find((item) => item.id === sessionId);
-  const update = (key: keyof typeof form, value: string | boolean) => setForm((current) => ({ ...current, [key]: value }));
+  const update = (key: keyof typeof form, value: string | boolean) => { setFormIssue(null); setForm((current) => ({ ...current, [key]: value })); };
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
-    if (!isSessionSubmittable(selected) || !form.artistName.trim() || !form.songTitle.trim() || !form.intro.trim() || !form.genre.trim() || !form.country.trim() || !form.trackUrl.trim() || !form.rightsAccepted) return;
+    const issue = submissionFormIssue(selected, form);
+    setFormIssue(issue);
+    if (issue) return;
     const data = buildSubmissionInput(sessionId, form);
     create.mutate({ data }, { onSuccess: (result) => { setReceipt(result); refreshAfterArtistSubmission(queryClient, sessionId); } });
   };
@@ -439,8 +445,9 @@ function SubmitPage() {
     <div className="grid gap-5 sm:grid-cols-2"><Field label={t('social')} value={form.socialUrl} onChange={(v) => update('socialUrl', v)} placeholder={t('urlPlaceholder')} testId="input-social-url" type="url" maxLength={500} /><Field label={t('track')} required value={form.trackUrl} onChange={(v) => update('trackUrl', v)} placeholder={t('urlPlaceholder')} testId="input-track-url" type="url" maxLength={1000} /></div>
     <p className="-mt-4 text-xs leading-5 text-muted-foreground">{t('trackLinkOnly')}</p>
     <div><label htmlFor="submission-session" className="mb-2 block text-xs font-bold uppercase tracking-wider text-foreground">{t('chooseSession')} <span className="text-accent">*</span></label><select id="submission-session" required value={sessionId} onChange={(e) => setSessionId(e.target.value)} disabled={sessionsQuery.isLoading || sessionsQuery.isError || !sessions.length} className="w-full rounded-md border border-input bg-background/60 px-3 py-3 text-sm outline-none focus:border-primary disabled:opacity-60" data-testid="select-session"><option value="">{sessionsQuery.isLoading ? t('loading') : t('chooseSession')}</option>{sessions.map((session) => <option key={session.id} value={session.id} disabled={!isSessionSubmittable(session)}>{sessionName(session, t)} · {formatDate(session.startsAt, language)} · {session.isOpen ? session.available > 0 ? `${session.available} ${t('available')}` : t('full') : t('closed')}</option>)}</select>{sessionsQuery.isError && <div className="mt-2 flex items-center justify-between gap-3 text-xs text-destructive"><span>{t('error')}</span><button type="button" onClick={() => sessionsQuery.refetch()} className="rounded border border-border px-3 py-2 font-bold hover:bg-secondary" data-testid="button-retry-submit-sessions">{t('retry')}</button></div>}{!sessionsQuery.isLoading && !sessionsQuery.isError && !sessions.length && <p className="mt-2 text-xs text-muted-foreground">{t('noSessionsBody')}</p>}{selected && !isSessionSubmittable(selected) && <p className="mt-2 text-xs text-destructive">{selected.isOpen ? t('fullNote') : t('sessionClosed')}</p>}</div>
-    <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-background/35 p-3 text-xs leading-5 text-muted-foreground"><input type="checkbox" checked={form.rightsAccepted} onChange={(e) => update('rightsAccepted', e.target.checked)} className="mt-1 size-4 accent-[hsl(var(--primary))]" data-testid="input-rights-accepted" /><span>{t('rights')} <span className="text-accent">*</span></span></label>
-    {create.isError && <p role="alert" className="flex items-center gap-2 text-sm text-destructive"><AlertCircle className="size-4" />{t('error')}</p>}
+    <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-background/35 p-3 text-xs leading-5 text-muted-foreground"><input type="checkbox" required checked={form.rightsAccepted} onChange={(e) => update('rightsAccepted', e.target.checked)} className="mt-1 size-4 accent-[hsl(var(--primary))]" data-testid="input-rights-accepted" /><span>{t('rights')} <span className="text-accent">*</span></span></label>
+    {formIssue && <p role="alert" className="flex items-center gap-2 text-sm text-destructive" data-testid="text-form-issue"><AlertCircle className="size-4" />{t(formIssue)}</p>}
+    {create.isError && !formIssue && <p role="alert" className="flex items-center gap-2 text-sm text-destructive" data-testid="text-submit-error"><AlertCircle className="size-4" />{t(submissionErrorKey(create.error))}</p>}
     <button type="submit" disabled={create.isPending || !isSessionSubmittable(selected)} className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-3.5 text-xs font-bold uppercase tracking-[.18em] text-primary-foreground transition hover:bg-primary/85 disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-submit-track">{create.isPending ? <><Loader2 className="size-4 animate-spin" />{t('submitting')}</> : <><Send className="size-4" />{t('sendTrack')}</>}</button>
   </form></div><aside className="space-y-5"><div className="rounded-xl border border-primary/30 bg-primary/5 p-6"><ShieldCheck className="size-6 text-primary" /><h2 className="mt-5 font-display text-2xl">{t('howItWorks')}</h2><div className="mt-6 space-y-5">{[['step1', 'step1Body'], ['step2', 'step2Body'], ['step3', 'step3Body']].map(([title, body], i) => <div key={title} className="flex gap-3"><span className="font-mono-ui text-xs text-accent">0{i + 1}</span><div><h3 className="text-sm font-bold">{t(title)}</h3><p className="mt-1 text-xs leading-6 text-muted-foreground">{t(body)}</p></div></div>)}</div></div><QueuePreview sessionId={selected?.id || sessions[0]?.id} t={t} /></aside></div></main></Shell>;
 }
@@ -844,7 +851,7 @@ function ClerkProviderWithRoutes() {
 }
 
 function App() {
-  if (!clerkPubKey) throw new Error('Missing VITE_GOFL_CLERK_PUBLISHABLE_KEY in .env file');
+  if (!clerkPubKey) throw new Error('Missing VITE_GOFL_CLERK_PUBLISHABLE_KEY (or VITE_CLERK_PUBLISHABLE_KEY) at build time');
   return <WouterRouter base={basePath}><ClerkProviderWithRoutes /></WouterRouter>;
 }
 

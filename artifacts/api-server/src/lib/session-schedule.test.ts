@@ -43,7 +43,7 @@ test("generates one session for every consecutive Kyiv calendar day across year-
   deepStrictEqual(actualDates, expectedDates);
 });
 
-test("preserves daily session types and starts every session at 7 AM Kyiv time", () => {
+test("preserves daily session types and starts every session at 8 PM (20:00) Kyiv time", () => {
   const sessions = generateUpcomingSessionInstances(
     new Date("2026-10-06T03:00:00.000Z"),
     5,
@@ -61,11 +61,11 @@ test("preserves daily session types and starts every session at 7 AM Kyiv time",
   );
   deepStrictEqual(
     sessions.map(({ startsAt }) => kyivDateAndTime(startsAt).time),
-    ["07:00", "07:00", "07:00", "07:00", "07:00"],
+    ["20:00", "20:00", "20:00", "20:00", "20:00"],
   );
 });
 
-test("keeps 7 AM Kyiv time across daylight-saving changes", () => {
+test("keeps 8 PM (20:00) Kyiv time across daylight-saving changes", () => {
   const springSessions = generateUpcomingSessionInstances(
     new Date("2026-03-28T04:00:00.000Z"),
     3,
@@ -77,17 +77,17 @@ test("keeps 7 AM Kyiv time across daylight-saving changes", () => {
 
   deepStrictEqual(
     springSessions.map(({ startsAt }) => kyivDateAndTime(startsAt).time),
-    ["07:00", "07:00", "07:00"],
+    ["20:00", "20:00", "20:00"],
   );
   deepStrictEqual(
     fallSessions.map(({ startsAt }) => kyivDateAndTime(startsAt).time),
-    ["07:00", "07:00"],
+    ["20:00", "20:00"],
   );
 });
 
 test("skips a session whose local start time has already passed", () => {
   const sessions = generateUpcomingSessionInstances(
-    new Date("2026-10-06T05:00:00.000Z"),
+    new Date("2026-10-06T18:00:00.000Z"),
     2,
   );
 

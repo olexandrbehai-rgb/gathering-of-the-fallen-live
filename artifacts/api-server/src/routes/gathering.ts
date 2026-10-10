@@ -27,6 +27,8 @@ import {
   generateUpcomingSessionInstances,
   kyivWallTimeOnDate,
   legacyTorontoDateAtKyivWallTime,
+  PREVIOUS_SESSION_HOUR,
+  SESSION_HOUR,
 } from "../lib/session-schedule";
 
 export function createGatheringRouter(
@@ -109,12 +111,17 @@ async function ensureUpcomingSessions(): Promise<void> {
     for (const existing of existingSessions) {
       if (existing.startsAt < localTodayStart) continue;
 
-      const alreadyAtKyivSeven =
-        kyivWallTimeOnDate(existing.startsAt, 7).getTime() ===
+      const alreadyAtSessionHour =
+        kyivWallTimeOnDate(existing.startsAt, SESSION_HOUR).getTime() ===
         existing.startsAt.getTime();
-      const startsAt = alreadyAtKyivSeven
+      const atPreviousKyivHour =
+        kyivWallTimeOnDate(existing.startsAt, PREVIOUS_SESSION_HOUR).getTime() ===
+        existing.startsAt.getTime();
+      const startsAt = alreadyAtSessionHour
         ? existing.startsAt
-        : legacyTorontoDateAtKyivWallTime(existing.startsAt, 7);
+        : atPreviousKyivHour
+          ? kyivWallTimeOnDate(existing.startsAt, SESSION_HOUR)
+          : legacyTorontoDateAtKyivWallTime(existing.startsAt, SESSION_HOUR);
       if (startsAt.getTime() !== existing.startsAt.getTime()) {
         await transaction
           .update(sessionsTable)

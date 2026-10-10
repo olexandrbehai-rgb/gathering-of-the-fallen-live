@@ -66,3 +66,27 @@ export function refreshAfterHostQueueChange(
     queryKey: getGetSessionQueuePreviewQueryKey(sessionId),
   });
 }
+export type SubmissionFormIssue = "sessionRequired" | "formIncomplete" | "rightsRequired" | null;
+
+/** Explains why the artist form cannot be sent yet, instead of silently ignoring the click. */
+export function submissionFormIssue(
+  session: SubmittableSession | null | undefined,
+  form: ArtistSubmissionForm,
+): SubmissionFormIssue {
+  if (!isSessionSubmittable(session)) return "sessionRequired";
+  const required = [form.artistName, form.songTitle, form.intro, form.genre, form.country, form.trackUrl];
+  if (required.some((value) => !value.trim())) return "formIncomplete";
+  if (!form.rightsAccepted) return "rightsRequired";
+  return null;
+}
+
+/** Maps an API error from POST /api/submissions to a translation key. */
+export function submissionErrorKey(error: unknown): string {
+  const data = (error as { data?: unknown } | null)?.data;
+  const message = typeof data === "object" && data && "error" in data ? String((data as { error: unknown }).error) : "";
+  if (/session is full/i.test(message)) return "fullNote";
+  if (/no longer accepting/i.test(message)) return "sessionClosed";
+  if (/HTTP or HTTPS|url/i.test(message)) return "linkInvalid";
+  if ((error as { status?: number } | null)?.status === 400) return "formIncomplete";
+  return "error";
+}
